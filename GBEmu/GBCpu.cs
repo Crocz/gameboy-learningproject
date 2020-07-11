@@ -126,9 +126,11 @@ namespace GBEmu {
                 case Instruction.NOP:
                     yield return NoOperation;
                     break;
+#pragma warning disable 1717
                 case Instruction.LD_A_A:
                     yield return () => registerA = registerA;
                     break;
+#pragma warning restore 1717
                 case Instruction.LD_A_B:
                     yield return () => registerA = registerB;
                     break;
@@ -150,9 +152,11 @@ namespace GBEmu {
                 case Instruction.LD_B_A:
                     yield return () => registerB = registerA;
                     break;
+#pragma warning disable 1717
                 case Instruction.LD_B_B:
                     yield return () => registerB = registerB;
                     break;
+#pragma warning restore 1717
                 case Instruction.LD_B_C:
                     yield return () => registerB = registerC;
                     break;
@@ -174,9 +178,11 @@ namespace GBEmu {
                 case Instruction.LD_C_B:
                     yield return () => registerC = registerB;
                     break;
+#pragma warning disable 1717
                 case Instruction.LD_C_C:
                     yield return () => registerC = registerC;
                     break;
+#pragma warning restore 1717
                 case Instruction.LD_C_D:
                     yield return () => registerC = registerD;
                     break;
@@ -198,9 +204,11 @@ namespace GBEmu {
                 case Instruction.LD_D_C:
                     yield return () => registerD = registerC;
                     break;
+#pragma warning disable 1717
                 case Instruction.LD_D_D:
                     yield return () => registerD = registerD;
                     break;
+#pragma warning restore 1717
                 case Instruction.LD_D_E:
                     yield return () => registerD = registerE;
                     break;
@@ -222,9 +230,11 @@ namespace GBEmu {
                 case Instruction.LD_E_D:
                     yield return () => registerE = registerD;
                     break;
+#pragma warning disable 1717
                 case Instruction.LD_E_E:
                     yield return () => registerE = registerE;
                     break;
+#pragma warning restore 1717
                 case Instruction.LD_E_H:
                     yield return () => registerE = registerH;
                     break;
@@ -246,9 +256,11 @@ namespace GBEmu {
                 case Instruction.LD_H_E:
                     yield return () => registerH = registerE;
                     break;
+#pragma warning disable 1717
                 case Instruction.LD_H_H:
                     yield return () => registerH = registerH;
                     break;
+#pragma warning restore 1717
                 case Instruction.LD_H_L:
                     yield return () => registerH = registerL;
                     break;
@@ -270,9 +282,11 @@ namespace GBEmu {
                 case Instruction.LD_L_H:
                     yield return () => registerL = registerH;
                     break;
+#pragma warning disable 1717
                 case Instruction.LD_L_L:
                     yield return () => registerL = registerL;
                     break;
+#pragma warning restore 1717
                 default: throw new NotImplementedException();
             }
         }
