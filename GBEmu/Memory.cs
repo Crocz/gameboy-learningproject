@@ -1,6 +1,7 @@
 ﻿namespace GBEmu {
     public interface IMemory {
-        byte GetByte(ushort address);
+        byte ReadByte(ushort address);
+        void WriteByte(ushort address, byte content);
     }
 
     public class Memory : IMemory {
@@ -34,8 +35,12 @@
         public Memory() {
             storage = new byte[0xFFFF];
         }
-        public byte GetByte(ushort address) {
+        public byte ReadByte(ushort address) {
             return storage[address];
+        }
+
+        public void WriteByte(ushort address, byte content) {
+            storage[address] = content;
         }
     }
 }

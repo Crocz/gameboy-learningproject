@@ -32,14 +32,14 @@ namespace GBEmu {
         private Action Return;
         private Action ConditionalReturn;
 
-        private ushort registerA; //accumulator and flags
-        private ushort registerB;
-        private ushort registerD;
-        private ushort registerH;
-        private ushort registerF;
-        private ushort registerC;
-        private ushort registerE;
-        private ushort registerL;
+        private byte registerA; //accumulator and flags
+        private byte registerB;
+        private byte registerD;
+        private byte registerH;
+        private byte registerF;
+        private byte registerC;
+        private byte registerE;
+        private byte registerL;
 
         private const int UpperMask = 0xFF00;
         private const int LowerMask = 0x00FF;
@@ -49,8 +49,8 @@ namespace GBEmu {
                 return (ushort)((registerA << 8) + registerF);
             }
             set {
-                registerF = (ushort)(value & LowerMask);
-                registerA = (ushort)((value >> 8) & LowerMask);
+                registerF = (byte)(value & LowerMask);
+                registerA = (byte)((value >> 8) & LowerMask);
             }
         }
         private ushort registerBC {
@@ -58,8 +58,8 @@ namespace GBEmu {
                 return (ushort)((registerB << 8) + registerC);
             }
             set {
-                registerC = (ushort)(value & LowerMask);
-                registerB = (ushort)((value >> 8) & LowerMask);
+                registerC = (byte)(value & LowerMask);
+                registerB = (byte)((value >> 8) & LowerMask);
             }
         }
         private ushort registerDE {
@@ -67,8 +67,8 @@ namespace GBEmu {
                 return (ushort)((registerD << 8) + registerE);
             }
             set {
-                registerE = (ushort)(value & LowerMask);
-                registerD = (ushort)((value >> 8) & LowerMask);
+                registerE = (byte)(value & LowerMask);
+                registerD = (byte)((value >> 8) & LowerMask);
             }
         }
         private ushort registerHL {
@@ -76,16 +76,17 @@ namespace GBEmu {
                 return (ushort)((registerH << 8) + registerL);
             }
             set {
-                registerL = (ushort)(value & LowerMask);
-                registerH = (ushort)((value >> 8) & LowerMask);
+                registerL = (byte)(value & LowerMask);
+                registerH = (byte)((value >> 8) & LowerMask);
             }
         }
 
 
         private ushort stackPointer;
-        private ushort programCounter;
+        private byte programCounter;
 
         private int workVariable;
+        private int workVariable2;
         private Instruction fetchedInstruction;
 
         public GbCpu(GbModel model, IMemory memory) {
@@ -114,7 +115,7 @@ namespace GBEmu {
         }
 
         private void FetchInstructionImpl() {
-            fetchedInstruction = (Instruction)memory.GetByte(programCounter);
+            fetchedInstruction = (Instruction)memory.ReadByte(programCounter++);
             var actions = GetActionChain(fetchedInstruction);
             foreach(var action in actions) {
                 steps.Enqueue(action);
@@ -287,6 +288,139 @@ namespace GBEmu {
                     yield return () => registerL = registerL;
                     break;
 #pragma warning restore 1717
+                case Instruction.LD_A_d8:
+                    yield return () => workVariable = memory.ReadByte(programCounter++);
+                    yield return () => registerA = (byte)workVariable;
+                    break;
+                case Instruction.LD_B_d8:
+                    yield return () => workVariable = memory.ReadByte(programCounter++);
+                    yield return () => registerB = (byte)workVariable;
+                    break;
+                case Instruction.LD_C_d8:
+                    yield return () => workVariable = memory.ReadByte(programCounter++);
+                    yield return () => registerC = (byte)workVariable;
+                    break;
+                case Instruction.LD_D_d8:
+                    yield return () => workVariable = memory.ReadByte(programCounter++);
+                    yield return () => registerD = (byte)workVariable;
+                    break;
+                case Instruction.LD_E_d8:
+                    yield return () => workVariable = memory.ReadByte(programCounter++);
+                    yield return () => registerE = (byte)workVariable;
+                    break;
+                case Instruction.LD_H_d8:
+                    yield return () => workVariable = memory.ReadByte(programCounter++);
+                    yield return () => registerH = (byte)workVariable;
+                    break;
+                case Instruction.LD_L_d8:
+                    yield return () => workVariable = memory.ReadByte(programCounter++);
+                    yield return () => registerL = (byte)workVariable;
+                    break;
+                case Instruction.LD_A_pHL:
+                    yield return () => workVariable = memory.ReadByte(registerHL);
+                    yield return () => registerA = (byte)workVariable;
+                    break;
+                case Instruction.LD_B_pHL:
+                    yield return () => workVariable = memory.ReadByte(registerHL);
+                    yield return () => registerB = (byte)workVariable;
+                    break;
+                case Instruction.LD_C_pHL:
+                    yield return () => workVariable = memory.ReadByte(registerHL);
+                    yield return () => registerC = (byte)workVariable;
+                    break;
+                case Instruction.LD_D_pHL:
+                    yield return () => workVariable = memory.ReadByte(registerHL);
+                    yield return () => registerD = (byte)workVariable;
+                    break;
+                case Instruction.LD_E_pHL:
+                    yield return () => workVariable = memory.ReadByte(registerHL);
+                    yield return () => registerE = (byte)workVariable;
+                    break;
+                case Instruction.LD_H_pHL:
+                    yield return () => workVariable = memory.ReadByte(registerHL);
+                    yield return () => registerH = (byte)workVariable;
+                    break;
+                case Instruction.LD_L_pHL:
+                    yield return () => workVariable = memory.ReadByte(registerHL);
+                    yield return () => registerL = (byte)workVariable;
+                    break;
+                case Instruction.LD_pHL_A:
+                    yield return () => workVariable = registerA;
+                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
+                    break;
+                case Instruction.LD_pHL_B:
+                    yield return () => workVariable = registerB;
+                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
+                    break;
+                case Instruction.LD_pHL_C:
+                    yield return () => workVariable = registerC;
+                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
+                    break;
+                case Instruction.LD_pHL_D:
+                    yield return () => workVariable = registerD;
+                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
+                    break;
+                case Instruction.LD_pHL_E:
+                    yield return () => workVariable = registerE;
+                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
+                    break;
+                case Instruction.LD_pHL_H:
+                    yield return () => workVariable = registerH;
+                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
+                    break;
+                case Instruction.LD_pHL_L:
+                    yield return () => workVariable = registerL;
+                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
+                    break;
+                case Instruction.LD_A_pHLminus:
+                    yield return () => registerA = memory.ReadByte(registerHL);
+                    yield return () => registerHL--;
+                    break;
+                case Instruction.LD_A_pHLplus:
+                    yield return () => registerA = memory.ReadByte(registerHL);
+                    yield return () => registerHL++;
+                    break;
+                case Instruction.LD_pHLminus_A:
+                    yield return () => memory.WriteByte(registerHL, registerA);
+                    yield return () => registerHL--;
+                    break;
+                case Instruction.LD_pHLplus_A:
+                    yield return () => memory.WriteByte(registerHL, registerA);
+                    yield return () => registerHL++;
+                    break;
+                case Instruction.LD_pHL_d8:
+                    yield return () => workVariable = memory.ReadByte(programCounter++);
+                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
+                    break;
+                case Instruction.LD_A_pBC:
+                    yield return () => workVariable = memory.ReadByte(registerBC);
+                    yield return () => registerA = (byte)workVariable;
+                    break;
+                case Instruction.LD_A_pDE:
+                    yield return () => workVariable = memory.ReadByte(registerDE);
+                    yield return () => registerA = (byte)workVariable;
+                    break;
+                case Instruction.LD_pBC_A:
+                    yield return () => workVariable = registerA;
+                    yield return () => memory.WriteByte(registerBC, (byte)workVariable);
+                    break;
+                case Instruction.LD_pDE_A:
+                    yield return () => workVariable = registerA;
+                    yield return () => memory.WriteByte(registerDE, (byte)workVariable);
+                    break;
+                case Instruction.LD_A_pa16:
+                    yield return () => workVariable = memory.ReadByte(programCounter++);
+                    yield return () => workVariable += memory.ReadByte(programCounter++) << 8;
+                    yield return () => workVariable = memory.ReadByte((ushort)workVariable);
+                    yield return () => registerA = (byte)workVariable;
+                    break;
+                case Instruction.LD_pa16_A:
+                    yield return () => workVariable = memory.ReadByte(programCounter++);
+                    yield return () => workVariable += memory.ReadByte(programCounter++) << 8;
+                    yield return () => workVariable2 = registerA;
+                    yield return () => memory.WriteByte((ushort)workVariable, (byte)workVariable2);
+                    break;
+
                 default: throw new NotImplementedException();
             }
         }
