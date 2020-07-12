@@ -430,13 +430,13 @@ namespace GBEmu {
                     break;
                 case Instruction.LDH_A_pa8:
                     yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => workVariable = memory.ReadByte((ushort)((0xFF << 8) + workVariable);
+                    yield return () => workVariable = memory.ReadByte((ushort)((0xFF << 8) + workVariable));
                     yield return () => registerA = (byte)workVariable;
                     break;
                 case Instruction.LDH_pa8_A:
                     yield return () => workVariable = memory.ReadByte(programCounter++);
                     yield return () => workVariable2 = registerA;
-                    yield return () => memory.WriteByte((ushort)((0xFF << 8) + workVariable, workVariable2);
+                    yield return () => memory.WriteByte((ushort)((0xFF << 8) + workVariable), (byte)workVariable2);
                     
                     break;
 
