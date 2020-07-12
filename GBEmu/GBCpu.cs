@@ -420,6 +420,25 @@ namespace GBEmu {
                     yield return () => workVariable2 = registerA;
                     yield return () => memory.WriteByte((ushort)workVariable, (byte)workVariable2);
                     break;
+                case Instruction.LD_A_pC:
+                    yield return () => workVariable = memory.ReadByte((ushort)((0xFF << 8) + registerC));
+                    yield return () => registerA = (byte)workVariable;
+                    break;
+                case Instruction.LD_pC_A:
+                    yield return () => workVariable = registerA;
+                    yield return () => memory.WriteByte((ushort)((0xFF << 8) + registerC), (byte)workVariable);
+                    break;
+                case Instruction.LDH_A_pa8:
+                    yield return () => workVariable = memory.ReadByte(programCounter++);
+                    yield return () => workVariable = memory.ReadByte((ushort)((0xFF << 8) + workVariable);
+                    yield return () => registerA = (byte)workVariable;
+                    break;
+                case Instruction.LDH_pa8_A:
+                    yield return () => workVariable = memory.ReadByte(programCounter++);
+                    yield return () => workVariable2 = registerA;
+                    yield return () => memory.WriteByte((ushort)((0xFF << 8) + workVariable, workVariable2);
+                    
+                    break;
 
                 default: throw new NotImplementedException();
             }
