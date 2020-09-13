@@ -106,8 +106,7 @@ namespace GBEmu {
             stackPointer = 0xfffe;
             programCounter = 0x0010;
 
-            FetchInstruction = new Action(FetchInstructionImpl);
-            NoOperation = new Action(NoOpImpl);            
+            FetchInstruction = new Action(FetchInstructionImpl);          
         }
 
         public void Tick() {
@@ -120,12 +119,13 @@ namespace GBEmu {
             foreach(var action in actions) {
                 steps.Enqueue(action);
             }
+            steps.Enqueue(FetchInstruction);
         }
 
         private IEnumerable<Action> GetActionChain(Instruction inst) {
             switch (inst) {
                 case Instruction.NOP:
-                    yield return NoOperation;
+                    yield return () => { };
                     break;
 #pragma warning disable 1717
                 case Instruction.LD_A_A:
@@ -443,11 +443,6 @@ namespace GBEmu {
                 default: throw new NotImplementedException();
             }
         }
-
-        private void NoOpImpl() {
-
-        }
-
     }
 
 }
