@@ -41,6 +41,11 @@ namespace GBEmu {
         private byte registerE;
         private byte registerL;
 
+        private const short ZeroFlagMask = 0b_0000_0000_1000_0000;
+        private const short AddSubFlagMask = 0b_0000_0000_0100_0000;
+        private const short HalfCarryFlagMask = 0b_0000_0000_0010_0000;
+        private const short CarryFlagMask = 0b_0000_0000_0001_0000;
+
         private const int UpperMask = 0xFF00;
         private const int LowerMask = 0x00FF;
 
@@ -437,11 +442,80 @@ namespace GBEmu {
                     yield return () => workVariable = memory.ReadByte(programCounter++);
                     yield return () => workVariable2 = registerA;
                     yield return () => memory.WriteByte((ushort)((0xFF << 8) + workVariable), (byte)workVariable2);
-                    
+                    break;
+                case Instruction.LD_DE_d16:
+                    yield return () => registerD = memory.ReadByte(programCounter++);
+                    yield return () => registerE = memory.ReadByte(programCounter++);
+                    break;
+                case Instruction.INC_A:
+                    yield return () => registerA = IncrementRegister(registerA);
+                    break;
+                case Instruction.INC_B:
+                    yield return () => registerB = IncrementRegister(registerB);
+                    break;
+                case Instruction.INC_C:
+                    yield return () => registerC = IncrementRegister(registerC);
+                    break;
+                case Instruction.INC_D:
+                    yield return () => registerD = IncrementRegister(registerD);
+                    break;
+                case Instruction.INC_E:
+                    yield return () => registerE = IncrementRegister(registerE);
+                    break;
+                case Instruction.INC_H:
+                    yield return () => registerH = IncrementRegister(registerH);
+                    break;
+                case Instruction.INC_L:
+                    yield return () => registerL = IncrementRegister(registerL);
+                    break;
+                case Instruction.DEC_A:
+                    yield return () => registerA = DecrementRegister(registerA);
+                    break;
+                case Instruction.DEC_B:
+                    yield return () => registerB = DecrementRegister(registerB);
+                    break;
+                case Instruction.DEC_C:
+                    yield return () => registerC = DecrementRegister(registerC);
+                    break;
+                case Instruction.DEC_D:
+                    yield return () => registerD = DecrementRegister(registerD);
+                    break;
+                case Instruction.DEC_E:
+                    yield return () => registerE = DecrementRegister(registerE);
+                    break;
+                case Instruction.DEC_H:
+                    yield return () => registerH = DecrementRegister(registerH);
+                    break;
+                case Instruction.DEC_L:
+                    yield return () => registerL = DecrementRegister(registerL);
                     break;
 
-                default: throw new NotImplementedException();
+                default: throw new NotImplementedException($"Instruction: {inst}");
             }
+        }
+
+        private byte IncrementRegister(byte register) {
+            workVariable = register + 1;
+            if(workVariable == 0) {
+                registerF = (byte)(registerF | ZeroFlagMask);
+            } else {
+                registerF = (byte)(registerF & ~ZeroFlagMask); //not sure if should be cleared, but seems reasonable.
+            }
+            registerF = (byte)(registerF & ~HalfCarryFlagMask); // set to zero on additions/increments
+            //something with carryflagmask too
+            return (byte)workVariable;
+        }
+
+        private byte DecrementRegister(byte register) {
+            workVariable = register - 1;
+            if (workVariable == 0) {
+                registerF = (byte)(registerF | ZeroFlagMask);
+            } else {
+                registerF = (byte)(registerF & ~ZeroFlagMask); //not sure if should be cleared, but seems reasonable.
+            }
+            registerF = (byte)(registerF | HalfCarryFlagMask); // set to one on subtractions/decrements
+            //something with carryflagmask too
+            return (byte)workVariable;
         }
     }
 
