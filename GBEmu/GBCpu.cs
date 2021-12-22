@@ -46,6 +46,9 @@ namespace GBEmu {
         private const short HalfCarryFlagMask = 0b_0000_0000_0010_0000;
         private const short CarryFlagMask = 0b_0000_0000_0001_0000;
 
+        private bool IsZeroFlagSet => (registerF & ZeroFlagMask) == ZeroFlagMask;
+        private bool IsCarryFlagSet => (registerF & CarryFlagMask) == CarryFlagMask;
+
         private ushort registerAF {
             get {
                 return Combine(registerA, registerF);
@@ -499,18 +502,43 @@ namespace GBEmu {
                     }
                     break;
                 case Instruction.CALL_a16:
-
+                    foreach (var action in Call_nn()) {
+                        yield return action;
+                    }
                     break;
+
+                case Instruction.CALL_C_a16:
+                case Instruction.CALL_NC_a16:
+                case Instruction.CALL_Z_a16:
+                case Instruction.CALL_NZ_a16:
+                
 
                 default: throw new NotImplementedException($"Instruction: {inst}");
             }
         }
 
-        private IEnumerable<Action> Call_nn(Instruction instruction) {
+        private IEnumerable<Action> Call_nn() {
             foreach (var step in Read16Bit()) {
                 yield return step;
             }
-
+            //waste a cycle?
+            foreach (var step in WritePCToStack()) {
+                yield return step;
+            }
+            yield return () => programCounter = (ushort)workVariable;
+        }
+        private IEnumerable<Action> Call_cc_nn(Instruction instruction) {
+            foreach (var step in Read16Bit()) {
+                yield return step;
+            }
+            if (EvaluateCondition(instruction)) {
+                foreach (var step in WritePCToStack()) {
+                    yield return step;
+                }
+                yield return () => programCounter = (ushort)workVariable;
+            } else {
+                //waste a cycle?
+            }
         }
 
 
@@ -531,11 +559,19 @@ namespace GBEmu {
         }
 
         private IEnumerable<Action> WritePCToStack() {
-            yield return () => memory.WriteByte(--stackPointer, programCounter);
-            yield return () => workVariable = workVariable + memory.ReadByte(programCounter++) << 8;
+            yield return () => memory.WriteByte(--stackPointer, LeastSignificantByte(programCounter));
+            yield return () => memory.WriteByte(--stackPointer, MostSignificantByte(programCounter));
         }
 
-
+        private bool EvaluateCondition(Instruction instruction) {
+            switch (instruction) {
+                case Instruction.CALL_C_a16: return IsCarryFlagSet;
+                case Instruction.CALL_NC_a16: return !IsCarryFlagSet;
+                case Instruction.CALL_Z_a16: return IsZeroFlagSet;
+                case Instruction.CALL_NZ_a16: return !IsZeroFlagSet;
+                default: throw new ArgumentException($"Wrong instruction '{instruction}'.");
+            }
+        }
 
         private byte IncrementRegister(byte register) {
             workVariable = register + 1;
