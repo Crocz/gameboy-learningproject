@@ -46,49 +46,50 @@ namespace GBEmu {
         private const short HalfCarryFlagMask = 0b_0000_0000_0010_0000;
         private const short CarryFlagMask = 0b_0000_0000_0001_0000;
 
-        private const int UpperMask = 0xFF00;
-        private const int LowerMask = 0x00FF;
-
         private ushort registerAF {
             get {
-                return (ushort)((registerA << 8) + registerF);
+                return Combine(registerA, registerF);
             }
             set {
-                registerF = (byte)(value & LowerMask);
-                registerA = (byte)((value >> 8) & LowerMask);
+                registerF = LeastSignificantByte(value);
+                registerA = MostSignificantByte(value);
             }
         }
         private ushort registerBC {
             get {
-                return (ushort)((registerB << 8) + registerC);
+                return Combine(registerB, registerC);
             }
             set {
-                registerC = (byte)(value & LowerMask);
-                registerB = (byte)((value >> 8) & LowerMask);
+                registerC = LeastSignificantByte(value);
+                registerB = MostSignificantByte(value);
             }
         }
         private ushort registerDE {
             get {
-                return (ushort)((registerD << 8) + registerE);
+                return Combine(registerD, registerE);
             }
             set {
-                registerE = (byte)(value & LowerMask);
-                registerD = (byte)((value >> 8) & LowerMask);
+                registerE = LeastSignificantByte(value);
+                registerD = MostSignificantByte(value);
             }
         }
         private ushort registerHL {
             get {
-                return (ushort)((registerH << 8) + registerL);
+                return Combine(registerH, registerL);
             }
             set {
-                registerL = (byte)(value & LowerMask);
-                registerH = (byte)((value >> 8) & LowerMask);
+                registerL = LeastSignificantByte(value);
+                registerH = MostSignificantByte(value);
             }
         }
+        private ushort Combine(byte upperByte, byte lowerByte) => (ushort)((upperByte << 8) + lowerByte);
+        private const int LeastSignificantByteMask = 0x00FF;
+        private byte MostSignificantByte(ushort UnsignedShort) => (byte)((UnsignedShort >> 8) & LeastSignificantByteMask);
+        private byte LeastSignificantByte(ushort UnsignedShort) => (byte)(UnsignedShort & LeastSignificantByteMask);
 
 
         private ushort stackPointer;
-        private byte programCounter;
+        private ushort programCounter;
 
         private int workVariable;
         private int workVariable2;
@@ -443,10 +444,10 @@ namespace GBEmu {
                     yield return () => workVariable2 = registerA;
                     yield return () => memory.WriteByte((ushort)((0xFF << 8) + workVariable), (byte)workVariable2);
                     break;
-                case Instruction.LD_DE_d16:
-                    yield return () => registerD = memory.ReadByte(programCounter++);
-                    yield return () => registerE = memory.ReadByte(programCounter++);
-                    break;
+                //case Instruction.LD_DE_d16:
+                //    yield return () => registerD = memory.ReadByte(programCounter++);
+                //    yield return () => registerE = memory.ReadByte(programCounter++);
+                //    break;
                 case Instruction.INC_A:
                     yield return () => registerA = IncrementRegister(registerA);
                     break;
@@ -489,10 +490,52 @@ namespace GBEmu {
                 case Instruction.DEC_L:
                     yield return () => registerL = DecrementRegister(registerL);
                     break;
+                case Instruction.LD_BC_d16:
+                case Instruction.LD_DE_d16:
+                case Instruction.LD_HL_d16:
+                case Instruction.LD_SP_d16:
+                    foreach(var action in LD_rr_nn(inst)) {
+                        yield return action;
+                    }
+                    break;
+                case Instruction.CALL_a16:
+
+                    break;
 
                 default: throw new NotImplementedException($"Instruction: {inst}");
             }
         }
+
+        private IEnumerable<Action> Call_nn(Instruction instruction) {
+            foreach (var step in Read16Bit()) {
+                yield return step;
+            }
+
+        }
+
+
+        private IEnumerable<Action> LD_rr_nn(Instruction instruction) {
+            foreach(var step in Read16Bit()) {
+                yield return step;
+            }
+            switch (instruction) {
+                case Instruction.LD_HL_d16:
+                    yield return () => registerHL = (ushort)workVariable;
+                    break;
+            }
+        }
+
+        private IEnumerable<Action> Read16Bit() {
+            yield return () => workVariable = memory.ReadByte(programCounter++);
+            yield return () => workVariable = workVariable + memory.ReadByte(programCounter++) << 8;
+        }
+
+        private IEnumerable<Action> WritePCToStack() {
+            yield return () => memory.WriteByte(--stackPointer, programCounter);
+            yield return () => workVariable = workVariable + memory.ReadByte(programCounter++) << 8;
+        }
+
+
 
         private byte IncrementRegister(byte register) {
             workVariable = register + 1;
