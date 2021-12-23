@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace GBEmu {
 
@@ -511,7 +510,10 @@ namespace GBEmu {
                 case Instruction.CALL_NC_a16:
                 case Instruction.CALL_Z_a16:
                 case Instruction.CALL_NZ_a16:
-                
+                foreach (var action in Call_cc_nn(inst)) {
+                        yield return action;
+                    }
+                    break;
 
                 default: throw new NotImplementedException($"Instruction: {inst}");
             }
@@ -527,6 +529,7 @@ namespace GBEmu {
             }
             yield return () => programCounter = (ushort)workVariable;
         }
+
         private IEnumerable<Action> Call_cc_nn(Instruction instruction) {
             foreach (var step in Read16Bit()) {
                 yield return step;

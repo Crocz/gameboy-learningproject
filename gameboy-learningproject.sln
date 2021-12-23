@@ -5,7 +5,9 @@ VisualStudioVersion = 16.0.29123.88
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GBEmu", "GBEmu\GBEmu.csproj", "{F7E234F4-F3A0-40F9-8D90-AD9E1388A1BA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GBEmu.Test", "GBEmu.Test\GBEmu.Test.csproj", "{279E769C-5DAF-4B2D-BE47-D934EF15B795}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GBEmu.Test", "GBEmu.Test\GBEmu.Test.csproj", "{279E769C-5DAF-4B2D-BE47-D934EF15B795}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GBEmuWinDesktopGUI", "GBEmuWinDesktopGUI\GBEmuWinDesktopGUI.csproj", "{A3EF7FB3-DEDA-4A2B-91AD-1032C2E66AD4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{279E769C-5DAF-4B2D-BE47-D934EF15B795}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{279E769C-5DAF-4B2D-BE47-D934EF15B795}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{279E769C-5DAF-4B2D-BE47-D934EF15B795}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3EF7FB3-DEDA-4A2B-91AD-1032C2E66AD4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3EF7FB3-DEDA-4A2B-91AD-1032C2E66AD4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3EF7FB3-DEDA-4A2B-91AD-1032C2E66AD4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3EF7FB3-DEDA-4A2B-91AD-1032C2E66AD4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
