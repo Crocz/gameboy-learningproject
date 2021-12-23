@@ -45,9 +45,11 @@ namespace GBEmu {
                 StringBuilder stringBuilder = new StringBuilder();
                 int x = 0;
                 int next;
-                while (x < 150) {
+                int lines = 0;
+                while (x < storage.Length) {
                     stringBuilder.AppendLine(PrettyPrint(x, out next));
                     x = next;
+                    lines++;
                 }
                 return stringBuilder.ToString();
             }
