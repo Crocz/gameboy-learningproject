@@ -47,7 +47,7 @@ namespace GBEmu {
                 int next;
                 int lines = 0;
                 while (x < storage.Length) {
-                    stringBuilder.AppendLine(PrettyPrint(x, out next));
+                    stringBuilder.AppendLine($"{PrettyPrint(x, out next)}, ${x.ToString("X4")}");
                     x = next;
                     lines++;
                 }
@@ -82,8 +82,8 @@ namespace GBEmu {
             }
             Instruction i = (Instruction)storage[x];
             if (i == Instruction.PREFIX_CB) {
-                nextOffset = x + 1;
-                return i.ToString();
+                nextOffset = x + 2;
+                return ((CBInstruction)storage[x+1]).ToString();
             }
             switch (i) {
                 case Instruction.NOP:
@@ -248,6 +248,10 @@ namespace GBEmu {
                 case Instruction.CP_H:
                 case Instruction.CP_L:
                 case Instruction.CP_pHL:
+                case Instruction.POP_AF:
+                case Instruction.POP_BC:
+                case Instruction.POP_DE:
+                case Instruction.POP_HL:
                 case Instruction.PUSH_AF:
                 case Instruction.PUSH_BC:
                 case Instruction.PUSH_DE:
@@ -258,6 +262,8 @@ namespace GBEmu {
                 case Instruction.RET_C:
                 case Instruction.RET_NZ:
                 case Instruction.RET_NC:
+                case Instruction.RLA:
+                case Instruction.RLCA:
                     nextOffset = x + 1;
                     return i.ToString();
 
