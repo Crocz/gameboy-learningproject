@@ -47,18 +47,13 @@ namespace GBEmu {
         private const short HalfCarryFlagMask = 0b_0000_0000_0010_0000;
         private const short CarryFlagMask = 0b_0000_0000_0001_0000;
 
-        private void SetZeroFlag(bool value) => registerF = value ? (byte)(registerF | ZeroFlagMask) : (byte)(registerF & ~ZeroFlagMask);
-        private bool IsZeroFlagSet => (registerF & ZeroFlagMask) == ZeroFlagMask;
-        private void SetCarryFlag(bool value) => registerF = value ? (byte)(registerF | CarryFlagMask) : (byte)(registerF & ~CarryFlagMask);
-        private bool IsCarryFlagSet => (registerF & CarryFlagMask) == CarryFlagMask;
-
-        private void SetFlag(Flag f, bool newValue) {
-            var mask = GetMask(f);
+        private void SetFlag(CpuFlags flag, bool newValue) {
+            var mask = GetMask(flag);
             registerF = newValue ? (byte)(registerF | mask) : (byte)(registerF & ~mask);
         }
 
-        private bool IsFlagSet(Flag f) {
-            var mask = GetMask(f);
+        private bool IsFlagSet(CpuFlags flag) {
+            var mask = GetMask(flag);
             return (registerF & mask) == mask;
         }
 
@@ -517,31 +512,31 @@ namespace GBEmu {
                     break;
                 case Instruction.XOR_A:
                     yield return () => registerA = XorWithRegisterA(registerA);
-                    yield return () => SetZeroFlag(registerA == 0);
+                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
                     break;
                 case Instruction.XOR_B:
                     yield return () => registerA = XorWithRegisterA(registerB);
-                    yield return () => SetZeroFlag(registerA == 0);
+                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
                     break;
                 case Instruction.XOR_C:
                     yield return () => registerA = XorWithRegisterA(registerC);
-                    yield return () => SetZeroFlag(registerA == 0);
+                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
                     break;
                 case Instruction.XOR_D:
                     yield return () => registerA = XorWithRegisterA(registerD);
-                    yield return () => SetZeroFlag(registerA == 0);
+                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
                     break;
                 case Instruction.XOR_E:
                     yield return () => registerA = XorWithRegisterA(registerE);
-                    yield return () => SetZeroFlag(registerA == 0);
+                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
                     break;
                 case Instruction.XOR_H:
                     yield return () => registerA = XorWithRegisterA(registerH);
-                    yield return () => SetZeroFlag(registerA == 0);
+                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
                     break;
                 case Instruction.XOR_L:
                     yield return () => registerA = XorWithRegisterA(registerL);
-                    yield return () => SetZeroFlag(registerA == 0);
+                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
                     break;
                 case Instruction.LD_BC_d16:
                 case Instruction.LD_DE_d16:
@@ -635,10 +630,10 @@ namespace GBEmu {
 
         private bool EvaluateCondition(Instruction instruction) {
             switch (instruction) {
-                case Instruction.CALL_C_a16: return IsCarryFlagSet;
-                case Instruction.CALL_NC_a16: return !IsCarryFlagSet;
-                case Instruction.CALL_Z_a16: return IsZeroFlagSet;
-                case Instruction.CALL_NZ_a16: return !IsZeroFlagSet;
+                case Instruction.CALL_C_a16: return IsFlagSet(CpuFlags.Carry);
+                case Instruction.CALL_NC_a16: return !IsFlagSet(CpuFlags.Carry);
+                case Instruction.CALL_Z_a16: return IsFlagSet(CpuFlags.Zero);
+                case Instruction.CALL_NZ_a16: return !IsFlagSet(CpuFlags.Zero);
                 default: throw new ArgumentException($"Wrong instruction '{instruction}'.");
             }
         }
@@ -669,17 +664,12 @@ namespace GBEmu {
 
 
         private short GetMask(CpuFlags flag) => flag switch {
-            CpuFlags.Zero => ZeroFlagMask;
-            CpuFlags.AddSub => throw new NotImplementedException(),
-            CpuFlags.HalfCarry => throw new NotImplementedException(),
-            CpuFlags.Carry => throw new NotImplementedException(),
+            CpuFlags.Zero => ZeroFlagMask,
+            CpuFlags.AddSub => AddSubFlagMask,
+            CpuFlags.HalfCarry => HalfCarryFlagMask,
+            CpuFlags.Carry => CarryFlagMask,
+            _ => throw new NotImplementedException($"Unrecognized flag '{flag}'."),
         };
-        
-
-        private const short ZeroFlagMask = 0b_0000_0000_1000_0000;
-        private const short AddSubFlagMask = 0b_0000_0000_0100_0000;
-        private const short HalfCarryFlagMask = 0b_0000_0000_0010_0000;
-        private const short CarryFlagMask = 0b_0000_0000_0001_0000;
 
         private enum CpuFlags {
             Zero,
