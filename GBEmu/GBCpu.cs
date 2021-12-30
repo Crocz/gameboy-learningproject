@@ -90,7 +90,7 @@ namespace GBEmu {
         }
         private ushort Combine(byte upperByte, byte lowerByte) => (ushort)((upperByte << 8) + lowerByte);
         private const int LeastSignificantByteMask = 0x00FF;
-        private const int LeastSignificantBitMask = 0b_0000_0000_0000_0001;
+        private const byte LeastSignificantBitMask = 0b_0000_0001;
         private byte MostSignificantByte(ushort UnsignedShort) => (byte)((UnsignedShort >> 8) & LeastSignificantByteMask);
         private byte LeastSignificantByte(ushort UnsignedShort) => (byte)(UnsignedShort & LeastSignificantByteMask);
         private bool IsMostSignificantBitSet(byte b) => IsLeastSignificantBitSet((byte)(b >> 7));
@@ -98,6 +98,8 @@ namespace GBEmu {
 
 
         private ushort stackPointer;
+
+        private string ProgramCounter => $"${programCounter.ToString("X4")}";
         private ushort programCounter;
 
         private int workVariable;
@@ -130,7 +132,7 @@ namespace GBEmu {
 
         private void FetchInstructionImpl() {
             fetchedInstruction = (Instruction)memory.ReadByte(programCounter++);
-            var actions = GetActionChain(fetchedInstruction);
+            var actions =  GetActionChain(fetchedInstruction);
             foreach (var action in actions) {
                 steps.Enqueue(action);
             }
@@ -395,19 +397,19 @@ namespace GBEmu {
                     break;
                 case Instruction.LD_A_pHLminus:
                     yield return () => registerA = memory.ReadByte(registerHL);
-                    yield return () => registerHL--;
+                    yield return () => registerHL = (ushort)(registerHL - 1);
                     break;
                 case Instruction.LD_A_pHLplus:
                     yield return () => registerA = memory.ReadByte(registerHL);
-                    yield return () => registerHL++;
+                    yield return () => registerHL = (ushort)(registerHL + 1);
                     break;
                 case Instruction.LD_pHLminus_A:
                     yield return () => memory.WriteByte(registerHL, registerA);
-                    yield return () => registerHL--;
+                    yield return () => registerHL = (ushort)(registerHL - 1);
                     break;
                 case Instruction.LD_pHLplus_A:
                     yield return () => memory.WriteByte(registerHL, registerA);
-                    yield return () => registerHL++;
+                    yield return () => registerHL = (ushort)(registerHL + 1);
                     break;
                 case Instruction.LD_pHL_d8:
                     yield return () => workVariable = memory.ReadByte(programCounter++);
@@ -546,7 +548,6 @@ namespace GBEmu {
                         yield return action;
                     }
                     break;
-
                 case Instruction.CALL_C_a16:
                 case Instruction.CALL_NC_a16:
                 case Instruction.CALL_Z_a16:
@@ -556,13 +557,39 @@ namespace GBEmu {
                     }
                     break;
 
+
+                
+                case Instruction.JR_C_r8:
+                case Instruction.JR_NC_r8:
+                case Instruction.JR_Z_r8:
+                case Instruction.JR_NZ_r8:
+                    foreach (var action in JR_cc_n(inst)) {
+                        yield return action;
+                    }
+                    break;
+
+                case Instruction.JR_r8:
+
                 default: throw new NotImplementedException($"Instruction: {inst}");
+            }
+        }
+
+        private IEnumerable<Action> JR_cc_n(Instruction instruction) {
+            foreach (var step in Read16Bit()) {
+                yield return step;
+            }
+            if (EvaluateCondition(instruction)) {
+                yield return () => programCounter = (ushort)(programCounter + workVariable);
+            } else {
+                //waste a cycle?
             }
         }
 
         private IEnumerable<Action> GetCbActionChain() {
             switch (CbInstruction) {
                 case CBInstruction.RLC_B:
+                    yield return () => RotateRegisterLeft(ref registerB);
+                    break;
 
                 default: throw new NotImplementedException($"CbInstruction: {CbInstruction}");
             }
@@ -571,9 +598,15 @@ namespace GBEmu {
         private byte XorWithRegisterA(byte register) => (byte)(register ^ registerA);
 
         private void RotateRegisterLeft(ref byte register) {
-            var msbValue = IsMostSignificantBitSet(register);
+            bool msbValue = IsMostSignificantBitSet(register);
             register = (byte)(register << 1);
-
+            if (msbValue) {
+                register = (byte)(register | LeastSignificantBitMask);
+            }
+            SetFlag(CpuFlags.Zero, register == 0);
+            SetFlag(CpuFlags.AddSub, false);
+            SetFlag(CpuFlags.HalfCarry, false);
+            SetFlag(CpuFlags.Carry, msbValue);
         }
 
         private IEnumerable<Action> Call_nn() {
@@ -625,10 +658,14 @@ namespace GBEmu {
 
         private bool EvaluateCondition(Instruction instruction) {
             switch (instruction) {
-                case Instruction.CALL_C_a16: return IsFlagSet(CpuFlags.Carry);
-                case Instruction.CALL_NC_a16: return !IsFlagSet(CpuFlags.Carry);
-                case Instruction.CALL_Z_a16: return IsFlagSet(CpuFlags.Zero);
-                case Instruction.CALL_NZ_a16: return !IsFlagSet(CpuFlags.Zero);
+                case Instruction.CALL_C_a16:
+                case Instruction.JR_C_r8: return IsFlagSet(CpuFlags.Carry);
+                case Instruction.CALL_NC_a16:
+                case Instruction.JR_NC_r8: return !IsFlagSet(CpuFlags.Carry);
+                case Instruction.CALL_Z_a16:
+                case Instruction.JR_Z_r8: return IsFlagSet(CpuFlags.Zero);
+                case Instruction.CALL_NZ_a16:
+                case Instruction.JR_NZ_r8: return !IsFlagSet(CpuFlags.Zero);
                 default: throw new ArgumentException($"Wrong instruction '{instruction}'.");
             }
         }
