@@ -31,6 +31,8 @@ namespace GBEmu {
         private Action Return;
         private Action ConditionalReturn;
 
+        private CBInstruction CbInstruction;
+
         private byte registerA; //accumulator and flags
         private byte registerB;
         private byte registerD;
@@ -45,8 +47,20 @@ namespace GBEmu {
         private const short HalfCarryFlagMask = 0b_0000_0000_0010_0000;
         private const short CarryFlagMask = 0b_0000_0000_0001_0000;
 
+        private void SetZeroFlag(bool value) => registerF = value ? (byte)(registerF | ZeroFlagMask) : (byte)(registerF & ~ZeroFlagMask);
         private bool IsZeroFlagSet => (registerF & ZeroFlagMask) == ZeroFlagMask;
+        private void SetCarryFlag(bool value) => registerF = value ? (byte)(registerF | CarryFlagMask) : (byte)(registerF & ~CarryFlagMask);
         private bool IsCarryFlagSet => (registerF & CarryFlagMask) == CarryFlagMask;
+
+        private void SetFlag(Flag f, bool newValue) {
+            var mask = GetMask(f);
+            registerF = newValue ? (byte)(registerF | mask) : (byte)(registerF & ~mask);
+        }
+
+        private bool IsFlagSet(Flag f) {
+            var mask = GetMask(f);
+            return (registerF & mask) == mask;
+        }
 
         private ushort registerAF {
             get {
@@ -86,8 +100,11 @@ namespace GBEmu {
         }
         private ushort Combine(byte upperByte, byte lowerByte) => (ushort)((upperByte << 8) + lowerByte);
         private const int LeastSignificantByteMask = 0x00FF;
+        private const int LeastSignificantBitMask = 0b_0000_0000_0000_0001;
         private byte MostSignificantByte(ushort UnsignedShort) => (byte)((UnsignedShort >> 8) & LeastSignificantByteMask);
         private byte LeastSignificantByte(ushort UnsignedShort) => (byte)(UnsignedShort & LeastSignificantByteMask);
+        private bool IsMostSignificantBitSet(byte b) => IsLeastSignificantBitSet((byte)(b >> 7));
+        private bool IsLeastSignificantBitSet(byte b) => (b & LeastSignificantBitMask) == LeastSignificantBitMask;
 
 
         private ushort stackPointer;
@@ -104,7 +121,7 @@ namespace GBEmu {
         }
 
         private void Init(GbModel model) {
-            if(model != GbModel.DMG) {
+            if (model != GbModel.DMG) {
                 throw new ArgumentOutOfRangeException("Currently only supports DMG model.");
             }
             registerAF = 0x01b0;
@@ -112,9 +129,9 @@ namespace GBEmu {
             registerDE = 0x00d8;
             registerHL = 0x014d;
             stackPointer = 0xfffe;
-            programCounter = 0x0010;
+            programCounter = 0x0000;
 
-            FetchInstruction = new Action(FetchInstructionImpl);          
+            FetchInstruction = new Action(FetchInstructionImpl);
         }
 
         public void Tick() {
@@ -124,7 +141,7 @@ namespace GBEmu {
         private void FetchInstructionImpl() {
             fetchedInstruction = (Instruction)memory.ReadByte(programCounter++);
             var actions = GetActionChain(fetchedInstruction);
-            foreach(var action in actions) {
+            foreach (var action in actions) {
                 steps.Enqueue(action);
             }
             steps.Enqueue(FetchInstruction);
@@ -134,6 +151,12 @@ namespace GBEmu {
             switch (inst) {
                 case Instruction.NOP:
                     yield return () => { };
+                    break;
+                case Instruction.PREFIX_CB:
+                    yield return () => CbInstruction = (CBInstruction)(memory.ReadByte(programCounter++));
+                    foreach (var action in GetCbActionChain()) {
+                        yield return action;
+                    }
                     break;
 #pragma warning disable 1717
                 case Instruction.LD_A_A:
@@ -492,11 +515,39 @@ namespace GBEmu {
                 case Instruction.DEC_L:
                     yield return () => registerL = DecrementRegister(registerL);
                     break;
+                case Instruction.XOR_A:
+                    yield return () => registerA = XorWithRegisterA(registerA);
+                    yield return () => SetZeroFlag(registerA == 0);
+                    break;
+                case Instruction.XOR_B:
+                    yield return () => registerA = XorWithRegisterA(registerB);
+                    yield return () => SetZeroFlag(registerA == 0);
+                    break;
+                case Instruction.XOR_C:
+                    yield return () => registerA = XorWithRegisterA(registerC);
+                    yield return () => SetZeroFlag(registerA == 0);
+                    break;
+                case Instruction.XOR_D:
+                    yield return () => registerA = XorWithRegisterA(registerD);
+                    yield return () => SetZeroFlag(registerA == 0);
+                    break;
+                case Instruction.XOR_E:
+                    yield return () => registerA = XorWithRegisterA(registerE);
+                    yield return () => SetZeroFlag(registerA == 0);
+                    break;
+                case Instruction.XOR_H:
+                    yield return () => registerA = XorWithRegisterA(registerH);
+                    yield return () => SetZeroFlag(registerA == 0);
+                    break;
+                case Instruction.XOR_L:
+                    yield return () => registerA = XorWithRegisterA(registerL);
+                    yield return () => SetZeroFlag(registerA == 0);
+                    break;
                 case Instruction.LD_BC_d16:
                 case Instruction.LD_DE_d16:
                 case Instruction.LD_HL_d16:
                 case Instruction.LD_SP_d16:
-                    foreach(var action in LD_rr_nn(inst)) {
+                    foreach (var action in LD_rr_nn(inst)) {
                         yield return action;
                     }
                     break;
@@ -510,13 +561,29 @@ namespace GBEmu {
                 case Instruction.CALL_NC_a16:
                 case Instruction.CALL_Z_a16:
                 case Instruction.CALL_NZ_a16:
-                foreach (var action in Call_cc_nn(inst)) {
+                    foreach (var action in Call_cc_nn(inst)) {
                         yield return action;
                     }
                     break;
 
                 default: throw new NotImplementedException($"Instruction: {inst}");
             }
+        }
+
+        private IEnumerable<Action> GetCbActionChain() {
+            switch (CbInstruction) {
+                case CBInstruction.RLC_B:
+
+                default: throw new NotImplementedException($"CbInstruction: {CbInstruction}");
+            }
+        }
+
+        private byte XorWithRegisterA(byte register) => (byte)(register ^ registerA);
+
+        private void RotateRegisterLeft(ref byte register) {
+            var msbValue = IsMostSignificantBitSet(register);
+            register = (byte)(register << 1);
+
         }
 
         private IEnumerable<Action> Call_nn() {
@@ -599,6 +666,26 @@ namespace GBEmu {
             //something with carryflagmask too
             return (byte)workVariable;
         }
-    }
 
+
+        private short GetMask(CpuFlags flag) => flag switch {
+            CpuFlags.Zero => ZeroFlagMask;
+            CpuFlags.AddSub => throw new NotImplementedException(),
+            CpuFlags.HalfCarry => throw new NotImplementedException(),
+            CpuFlags.Carry => throw new NotImplementedException(),
+        };
+        
+
+        private const short ZeroFlagMask = 0b_0000_0000_1000_0000;
+        private const short AddSubFlagMask = 0b_0000_0000_0100_0000;
+        private const short HalfCarryFlagMask = 0b_0000_0000_0010_0000;
+        private const short CarryFlagMask = 0b_0000_0000_0001_0000;
+
+        private enum CpuFlags {
+            Zero,
+            AddSub,
+            HalfCarry,
+            Carry,
+        }
+    }
 }
