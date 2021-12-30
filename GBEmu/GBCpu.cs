@@ -42,18 +42,13 @@ namespace GBEmu {
         private byte registerE;
         private byte registerL;
 
-        private const short ZeroFlagMask = 0b_0000_0000_1000_0000;
-        private const short AddSubFlagMask = 0b_0000_0000_0100_0000;
-        private const short HalfCarryFlagMask = 0b_0000_0000_0010_0000;
-        private const short CarryFlagMask = 0b_0000_0000_0001_0000;
-
         private void SetFlag(CpuFlags flag, bool newValue) {
-            var mask = GetMask(flag);
+            byte mask = GetMask(flag);
             registerF = newValue ? (byte)(registerF | mask) : (byte)(registerF & ~mask);
         }
 
         private bool IsFlagSet(CpuFlags flag) {
-            var mask = GetMask(flag);
+            byte mask = GetMask(flag);
             return (registerF & mask) == mask;
         }
 
@@ -662,8 +657,7 @@ namespace GBEmu {
             return (byte)workVariable;
         }
 
-
-        private short GetMask(CpuFlags flag) => flag switch {
+        private byte GetMask(CpuFlags flag) => flag switch {
             CpuFlags.Zero => ZeroFlagMask,
             CpuFlags.AddSub => AddSubFlagMask,
             CpuFlags.HalfCarry => HalfCarryFlagMask,
@@ -677,5 +671,10 @@ namespace GBEmu {
             HalfCarry,
             Carry,
         }
+
+        private const byte ZeroFlagMask = 0b_1000_0000;
+        private const byte AddSubFlagMask = 0b_0100_0000;
+        private const byte HalfCarryFlagMask = 0b_0010_0000;
+        private const byte CarryFlagMask = 0b_0001_0000;
     }
 }
