@@ -18,6 +18,8 @@ namespace GBEmu {
         private byte registerC;
         private byte registerE;
         private byte registerL;
+        private byte stackPointerUpper;
+        private byte stackPointerLower;
 
         private void SetFlag(CpuFlags flag, bool newValue) {
             byte mask = GetMask(flag);
@@ -65,6 +67,15 @@ namespace GBEmu {
                 registerH = MostSignificantByte(value);
             }
         }
+        private ushort stackPointer {
+            get {
+                return Combine(stackPointerUpper, stackPointerLower);
+            }
+            set {
+                registerL = LeastSignificantByte(value);
+                registerH = MostSignificantByte(value);
+            }
+        }
         private ushort Combine(byte upperByte, byte lowerByte) => (ushort)((upperByte << 8) + lowerByte);
         private const int LeastSignificantByteMask = 0x00FF;
         private const byte LeastSignificantBitMask = 0b_0000_0001;
@@ -73,18 +84,9 @@ namespace GBEmu {
         private bool IsMostSignificantBitSet(byte b) => IsLeastSignificantBitSet((byte)(b >> 7));
         private bool IsLeastSignificantBitSet(byte b) => (b & LeastSignificantBitMask) == LeastSignificantBitMask;
 
-
-        private ushort stackPointer;
-
         private string ProgramCounter => $"${programCounter.ToString("X4")}";
 
-        private const int Increment = 1;
-        private const int Decrement = -1;
-
         private ushort programCounter;
-
-        private int workVariable;
-        private int workVariable2;
 
         public GbCpu(GbModel model, IMemory memory) {
             this.memory = memory;
@@ -114,7 +116,7 @@ namespace GBEmu {
 
         private int ExecuteInstruction(Instruction instruction) {
             int cycles = 0;
-            switch (inst) {
+            switch (instruction) {
                 case Instruction.NOP:
                     return 4;
                 case Instruction.PREFIX_CB:
@@ -285,14 +287,12 @@ namespace GBEmu {
                     return Load_Target_Direct16MemoryAddr(ref registerA);
                 case Instruction.LD_pa16_A:
                     return Load_Direct16MemoryAddr_Source(registerA);
-                    break;
                 case Instruction.LD_A_pC:
                     return Load_Target_MemoryAddr(ref registerA, (ushort)((0xFF << 8) + registerC));
                 case Instruction.LD_pC_A:
                     return Load_MemoryAddr_SourceRegister((ushort)((0xFF << 8) + registerC), registerA);
                 case Instruction.LDH_A_pa8:
                     return Load_Target_Direct8MemoryAddr(ref registerA);
-                    break;
                 case Instruction.LDH_pa8_A:
                     return Load_Direct8MemoryAddr_Source(registerA);
                 case Instruction.INC_A:
@@ -324,72 +324,158 @@ namespace GBEmu {
                 case Instruction.DEC_L:
                     return Decrement(ref registerL);
                 case Instruction.XOR_A:
-                    yield return () => registerA = XorWithRegisterA(registerA);
-                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
-                    break;
+                    return XorWithRegisterA(registerA);
                 case Instruction.XOR_B:
-                    yield return () => registerA = XorWithRegisterA(registerB);
-                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
-                    break;
+                    return XorWithRegisterA(registerB);
                 case Instruction.XOR_C:
-                    yield return () => registerA = XorWithRegisterA(registerC);
-                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
-                    break;
+                    return XorWithRegisterA(registerC);
                 case Instruction.XOR_D:
-                    yield return () => registerA = XorWithRegisterA(registerD);
-                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
-                    break;
+                    return XorWithRegisterA(registerD);
                 case Instruction.XOR_E:
-                    yield return () => registerA = XorWithRegisterA(registerE);
-                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
-                    break;
+                    return XorWithRegisterA(registerE);
                 case Instruction.XOR_H:
-                    yield return () => registerA = XorWithRegisterA(registerH);
-                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
-                    break;
+                    return XorWithRegisterA(registerH);
                 case Instruction.XOR_L:
-                    yield return () => registerA = XorWithRegisterA(registerL);
-                    yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
-                    break;
+                    return XorWithRegisterA(registerL);
                 case Instruction.LD_BC_d16:
+                    return Load_Target_Direct8(ref registerC) + Load_Target_Direct8(ref registerB);
                 case Instruction.LD_DE_d16:
+                    return Load_Target_Direct8(ref registerD) + Load_Target_Direct8(ref registerE);
                 case Instruction.LD_HL_d16:
+                    return Load_Target_Direct8(ref registerL) + Load_Target_Direct8(ref registerH);
                 case Instruction.LD_SP_d16:
-                    foreach (var action in LD_rr_nn(inst)) {
-                        yield return action;
-                    }
-                    break;
+                    return Load_Target_Direct8(ref stackPointerLower) + Load_Target_Direct8(ref stackPointerUpper);
+
                 case Instruction.CALL_a16:
-                    foreach (var action in Call_nn()) {
-                        yield return action;
-                    }
-                    break;
+                    return Call_Direct16();
                 case Instruction.CALL_C_a16:
                 case Instruction.CALL_NC_a16:
                 case Instruction.CALL_Z_a16:
                 case Instruction.CALL_NZ_a16:
-                    foreach (var action in Call_cc_nn(inst)) {
-                        yield return action;
-                    }
-                    break;
+                    return Call_Conditional_Direct16(instruction);
 
-
-
+                case Instruction.JR_r8:
+                    return Jump_Direct8();
                 case Instruction.JR_C_r8:
                 case Instruction.JR_NC_r8:
                 case Instruction.JR_Z_r8:
                 case Instruction.JR_NZ_r8:
-                    foreach (var action in JR_cc_n(inst)) {
-                        yield return action;
-                    }
-                    break;
+                    return Jump_Conditonal_Direct8(instruction);
 
-                case Instruction.JR_r8:
-
-                default: throw new NotImplementedException($"Instruction: {inst}");
+                default: throw new NotImplementedException($"Instruction: {instruction}");
             }
         }
 
+        private int ExecuteCbInstruction(CBInstruction cbInstruction) {
+            switch (cbInstruction) {
+                case CBInstruction.BIT_1_A:
+                    return Bit_X_Source(1, registerA);
+                case CBInstruction.BIT_1_B:
+                    return Bit_X_Source(1, registerB);
+                case CBInstruction.BIT_1_C:
+                    return Bit_X_Source(1, registerC);
+                case CBInstruction.BIT_1_D:
+                    return Bit_X_Source(1, registerD);
+                case CBInstruction.BIT_1_E:
+                    return Bit_X_Source(1, registerE);
+                case CBInstruction.BIT_1_H:
+                    return Bit_X_Source(1, registerH);
+                case CBInstruction.BIT_1_L:
+                    return Bit_X_Source(1, registerL);
+                case CBInstruction.BIT_2_A:
+                    return Bit_X_Source(2, registerA);
+                case CBInstruction.BIT_2_B:
+                    return Bit_X_Source(2, registerB);
+                case CBInstruction.BIT_2_C:
+                    return Bit_X_Source(2, registerC);
+                case CBInstruction.BIT_2_D:
+                    return Bit_X_Source(2, registerD);
+                case CBInstruction.BIT_2_E:
+                    return Bit_X_Source(2, registerE);
+                case CBInstruction.BIT_2_H:
+                    return Bit_X_Source(2, registerH);
+                case CBInstruction.BIT_2_L:
+                    return Bit_X_Source(2, registerL);
+                case CBInstruction.BIT_3_A:
+                    return Bit_X_Source(3, registerA);
+                case CBInstruction.BIT_3_B:
+                    return Bit_X_Source(3, registerB);
+                case CBInstruction.BIT_3_C:
+                    return Bit_X_Source(3, registerC);
+                case CBInstruction.BIT_3_D:
+                    return Bit_X_Source(3, registerD);
+                case CBInstruction.BIT_3_E:
+                    return Bit_X_Source(3, registerE);
+                case CBInstruction.BIT_3_H:
+                    return Bit_X_Source(3, registerH);
+                case CBInstruction.BIT_3_L:
+                    return Bit_X_Source(3, registerL);
+                case CBInstruction.BIT_4_A:
+                    return Bit_X_Source(4, registerA);
+                case CBInstruction.BIT_4_B:
+                    return Bit_X_Source(4, registerB);
+                case CBInstruction.BIT_4_C:
+                    return Bit_X_Source(4, registerC);
+                case CBInstruction.BIT_4_D:
+                    return Bit_X_Source(4, registerD);
+                case CBInstruction.BIT_4_E:
+                    return Bit_X_Source(4, registerE);
+                case CBInstruction.BIT_4_H:
+                    return Bit_X_Source(4, registerH);
+                case CBInstruction.BIT_4_L:
+                    return Bit_X_Source(4, registerL);
+                case CBInstruction.BIT_5_A:
+                    return Bit_X_Source(5, registerA);
+                case CBInstruction.BIT_5_B:
+                    return Bit_X_Source(5, registerB);
+                case CBInstruction.BIT_5_C:
+                    return Bit_X_Source(5, registerC);
+                case CBInstruction.BIT_5_D:
+                    return Bit_X_Source(5, registerD);
+                case CBInstruction.BIT_5_E:
+                    return Bit_X_Source(5, registerE);
+                case CBInstruction.BIT_5_H:
+                    return Bit_X_Source(5, registerH);
+                case CBInstruction.BIT_5_L:
+                    return Bit_X_Source(5, registerL);
+                case CBInstruction.BIT_6_A:
+                    return Bit_X_Source(6, registerA);
+                case CBInstruction.BIT_6_B:
+                    return Bit_X_Source(6, registerB);
+                case CBInstruction.BIT_6_C:
+                    return Bit_X_Source(6, registerC);
+                case CBInstruction.BIT_6_D:
+                    return Bit_X_Source(6, registerD);
+                case CBInstruction.BIT_6_E:
+                    return Bit_X_Source(6, registerE);
+                case CBInstruction.BIT_6_H:
+                    return Bit_X_Source(6, registerH);
+                case CBInstruction.BIT_6_L:
+                    return Bit_X_Source(6, registerL);
+                case CBInstruction.BIT_7_A:
+                    return Bit_X_Source(7, registerA);
+                case CBInstruction.BIT_7_B:
+                    return Bit_X_Source(7, registerB);
+                case CBInstruction.BIT_7_C:
+                    return Bit_X_Source(7, registerC);
+                case CBInstruction.BIT_7_D:
+                    return Bit_X_Source(7, registerD);
+                case CBInstruction.BIT_7_E:
+                    return Bit_X_Source(7, registerE);
+                case CBInstruction.BIT_7_H:
+                    return Bit_X_Source(7, registerH);
+                case CBInstruction.BIT_7_L:
+                    return Bit_X_Source(7, registerL);
+
+                default: throw new NotImplementedException($"CbInstruction: {cbInstruction}");
+            }
+        }
+
+        private ushort ReadDirect16() => (ushort)(ReadDirect8() << ReadDirect8());
+
+        private byte ReadDirect8() => memory.ReadByte(programCounter++);
+
+        #region Instruction implementations
         private int Decrement(ref byte target) {
             target--;
             return 4;
@@ -401,28 +487,27 @@ namespace GBEmu {
         }
 
         private int Load_Direct8MemoryAddr_Source(byte source) {
-            ushort memoryAddr = (ushort)(memory.ReadByte(programCounter++) + 0xFF << 8);
+            ushort memoryAddr = (ushort)(ReadDirect8() + 0xFF << 8);
             return Load_MemoryAddr_SourceRegister(memoryAddr, source) + 8;
         }
 
         private int Load_Direct16MemoryAddr_Source(byte source) {
-            ushort memoryAddr = (ushort)(memory.ReadByte(programCounter++) + memory.ReadByte(programCounter++) << 8);
+            ushort memoryAddr = ReadDirect16();
             return Load_MemoryAddr_SourceRegister(memoryAddr, source) + 8;
         }
 
         private int Load_Target_Direct8MemoryAddr(ref byte target) {
-            ushort memoryAddr = (ushort)(memory.ReadByte(programCounter++) + 0xFF << 8);
+            ushort memoryAddr = (ushort)(ReadDirect8() + 0xFF << 8);
             return Load_Target_MemoryAddr(ref target, memoryAddr) + 8;
         }
 
         private int Load_Target_Direct16MemoryAddr(ref byte target) {
-            ushort memoryAddr = (ushort)(memory.ReadByte(programCounter++) + memory.ReadByte(programCounter++) << 8);
+            ushort memoryAddr = ReadDirect16();
             return Load_Target_MemoryAddr(ref target, memoryAddr) + 8;
         }
 
         private int Load_MemoryAddr_Direct8(ushort addr) {
-            var data = memory.ReadByte(programCounter++);
-            memory.WriteByte(addr, data);
+            memory.WriteByte(addr, ReadDirect8());
             return 4;
         }
 
@@ -450,14 +535,9 @@ namespace GBEmu {
             return 4;
         }
 
-
         private int Load_Target_Direct8(ref byte target) {
-            target = memory.ReadByte(programCounter++);
+            target = ReadDirect8();
             return 4;
-        }
-
-        private int ExecuteCbInstruction(CBInstruction cBInstruction) {
-            throw new NotImplementedException();
         }
 
         private int Load_Target_Source(ref byte target, byte source) {
@@ -465,87 +545,45 @@ namespace GBEmu {
             return 4;
         }
 
-        private IEnumerable<Action> JR_cc_n(Instruction instruction) {
-            foreach (var step in Read16Bit()) {
-                yield return step;
-            }
-            if (EvaluateCondition(instruction)) {
-                yield return () => programCounter = (ushort)(programCounter + workVariable);
-            } else {
-                //waste a cycle?
-            }
+        private byte XorWithRegisterA(byte data) {
+            registerA = (byte)(data ^ registerA);
+            SetFlag(CpuFlags.Zero, registerA == 0);
+            return 4;
         }
 
-        private IEnumerable<Action> GetCbActionChain() {
-            switch (CbInstruction) {
-                case CBInstruction.RLC_B:
-                    yield return () => RotateRegisterLeft(ref registerB);
-                    break;
+        private int Call_Direct16() => Conditional_Call_Direct16(true);
 
-                default: throw new NotImplementedException($"CbInstruction: {CbInstruction}");
+        private int Call_Conditional_Direct16(Instruction instruction) => Conditional_Call_Direct16(EvaluateCondition(instruction));
+
+        private int Conditional_Call_Direct16(bool call) {
+            int cycles = 4;
+            ushort addr = ReadDirect16();
+            if (call) {
+                WritePCToStack();
+                programCounter = addr;
+                cycles += 8;
             }
+            return cycles;
+        }
+        private void WritePCToStack() {
+            memory.WriteByte(--stackPointer, LeastSignificantByte(programCounter));
+            memory.WriteByte(--stackPointer, MostSignificantByte(programCounter));
         }
 
-        private byte XorWithRegisterA(byte register) => (byte)(register ^ registerA);
+        private int Jump_Direct8() => Conditional_Jump_Direct8(true);
 
-        private void RotateRegisterLeft(ref byte register) {
-            bool msbValue = IsMostSignificantBitSet(register);
-            register = (byte)(register << 1);
-            if (msbValue) {
-                register = (byte)(register | LeastSignificantBitMask);
+        private int Jump_Conditonal_Direct8(Instruction instruction) => Conditional_Jump_Direct8(EvaluateCondition(instruction));
+
+        private int Conditional_Jump_Direct8(bool call) {
+            int cycles = 4;
+            sbyte signedOffset = (sbyte)ReadDirect8();
+            if (call) {
+                programCounter = (ushort)(programCounter + signedOffset);
+                cycles += 8;
             }
-            SetFlag(CpuFlags.Zero, register == 0);
-            SetFlag(CpuFlags.AddSub, false);
-            SetFlag(CpuFlags.HalfCarry, false);
-            SetFlag(CpuFlags.Carry, msbValue);
+            return cycles;
         }
-
-        private IEnumerable<Action> Call_nn() {
-            foreach (var step in Read16Bit()) {
-                yield return step;
-            }
-            //waste a cycle?
-            foreach (var step in WritePCToStack()) {
-                yield return step;
-            }
-            yield return () => programCounter = (ushort)workVariable;
-        }
-
-        private IEnumerable<Action> Call_cc_nn(Instruction instruction) {
-            foreach (var step in Read16Bit()) {
-                yield return step;
-            }
-            if (EvaluateCondition(instruction)) {
-                foreach (var step in WritePCToStack()) {
-                    yield return step;
-                }
-                yield return () => programCounter = (ushort)workVariable;
-            } else {
-                //waste a cycle?
-            }
-        }
-
-
-        private IEnumerable<Action> LD_rr_nn(Instruction instruction) {
-            foreach(var step in Read16Bit()) {
-                yield return step;
-            }
-            switch (instruction) {
-                case Instruction.LD_HL_d16:
-                    yield return () => registerHL = (ushort)workVariable;
-                    break;
-            }
-        }
-
-        private IEnumerable<Action> Read16Bit() {
-            yield return () => workVariable = memory.ReadByte(programCounter++);
-            yield return () => workVariable = workVariable + memory.ReadByte(programCounter++) << 8;
-        }
-
-        private IEnumerable<Action> WritePCToStack() {
-            yield return () => memory.WriteByte(--stackPointer, LeastSignificantByte(programCounter));
-            yield return () => memory.WriteByte(--stackPointer, MostSignificantByte(programCounter));
-        }
+        #endregion
 
         private bool EvaluateCondition(Instruction instruction) {
             switch (instruction) {
@@ -561,30 +599,31 @@ namespace GBEmu {
             }
         }
 
-        private byte IncrementRegister(byte register) {
-            workVariable = register + 1;
-            if(workVariable == 0) {
-                registerF = (byte)(registerF | ZeroFlagMask);
-            } else {
-                registerF = (byte)(registerF & ~ZeroFlagMask); //not sure if should be cleared, but seems reasonable.
-            }
-            registerF = (byte)(registerF & ~HalfCarryFlagMask); // set to zero on additions/increments
-            //something with carryflagmask too
-            return (byte)workVariable;
+        #region CBInstruction implementations
+
+        private int Bit_X_Source(int x, byte source) {
+            var isBitXSet = IsLeastSignificantBitSet((byte)(source >> x));
+            SetFlag(CpuFlags.Zero, isBitXSet);
+            SetFlag(CpuFlags.AddSub, false);
+            SetFlag(CpuFlags.HalfCarry, true);
+            //Carry not affected
+            return 8;
         }
 
-        private byte DecrementRegister(byte register) {
-            workVariable = register - 1;
-            if (workVariable == 0) {
-                registerF = (byte)(registerF | ZeroFlagMask);
-            } else {
-                registerF = (byte)(registerF & ~ZeroFlagMask); //not sure if should be cleared, but seems reasonable.
+        private void RotateRegisterLeft(ref byte register) {
+            bool msbValue = IsMostSignificantBitSet(register);
+            register = (byte)(register << 1);
+            if (msbValue) {
+                register = (byte)(register | LeastSignificantBitMask);
             }
-            registerF = (byte)(registerF | HalfCarryFlagMask); // set to one on subtractions/decrements
-            //something with carryflagmask too
-            return (byte)workVariable;
+            SetFlag(CpuFlags.Zero, register == 0);
+            SetFlag(CpuFlags.AddSub, false);
+            SetFlag(CpuFlags.HalfCarry, false);
+            SetFlag(CpuFlags.Carry, msbValue);
         }
+        #endregion
 
+        #region CpuFlags
         private byte GetMask(CpuFlags flag) => flag switch {
             CpuFlags.Zero => ZeroFlagMask,
             CpuFlags.AddSub => AddSubFlagMask,
@@ -604,5 +643,6 @@ namespace GBEmu {
         private const byte AddSubFlagMask = 0b_0100_0000;
         private const byte HalfCarryFlagMask = 0b_0010_0000;
         private const byte CarryFlagMask = 0b_0001_0000;
+        #endregion
     }
 }
