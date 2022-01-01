@@ -113,6 +113,7 @@ namespace GBEmu {
         }
 
         private int ExecuteInstruction(Instruction instruction) {
+            int cycles = 0;
             switch (inst) {
                 case Instruction.NOP:
                     return 4;
@@ -259,113 +260,69 @@ namespace GBEmu {
                 case Instruction.LD_pHL_L:
                     return Load_MemoryAddr_SourceRegister(registerHL, registerL);
                 case Instruction.LD_A_pHLminus:
-                    return Load_Target_MemoryAddr(ref registerA, registerHL, Decrement);
+                    return Load_Target_pHLminus(ref registerA);
                 case Instruction.LD_A_pHLplus:
-                    return Load_Target_MemoryAddr(ref registerA, registerHL, Increment);
+                    return Load_Target_pHLplus(ref registerA);
                 case Instruction.LD_pHLminus_A:
-                    yield return () => memory.WriteByte(registerHL, registerA);
-                    yield return () => registerHL = (ushort)(registerHL - 1);
-                    break;
+                    cycles = Load_MemoryAddr_SourceRegister(registerHL, registerA);
+                    registerHL = (ushort)(registerHL - 1);
+                    return cycles;
                 case Instruction.LD_pHLplus_A:
-                    yield return () => memory.WriteByte(registerHL, registerA);
-                    yield return () => registerHL = (ushort)(registerHL + 1);
-                    break;
+                    cycles = Load_MemoryAddr_SourceRegister(registerHL, registerA);
+                    registerHL = (ushort)(registerHL + 1);
+                    return cycles;
                 case Instruction.LD_pHL_d8:
-                    yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
-                    break;
+                    return Load_MemoryAddr_Direct8(registerHL);
                 case Instruction.LD_A_pBC:
-                    yield return () => workVariable = memory.ReadByte(registerBC);
-                    yield return () => registerA = (byte)workVariable;
-                    break;
+                    return Load_Target_MemoryAddr(ref registerA, registerBC);
                 case Instruction.LD_A_pDE:
-                    yield return () => workVariable = memory.ReadByte(registerDE);
-                    yield return () => registerA = (byte)workVariable;
-                    break;
+                    return Load_Target_MemoryAddr(ref registerA, registerDE);
                 case Instruction.LD_pBC_A:
-                    yield return () => workVariable = registerA;
-                    yield return () => memory.WriteByte(registerBC, (byte)workVariable);
-                    break;
+                    return Load_MemoryAddr_SourceRegister(registerBC, registerA);
                 case Instruction.LD_pDE_A:
-                    yield return () => workVariable = registerA;
-                    yield return () => memory.WriteByte(registerDE, (byte)workVariable);
-                    break;
+                    return Load_MemoryAddr_SourceRegister(registerDE, registerA);
                 case Instruction.LD_A_pa16:
-                    yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => workVariable += memory.ReadByte(programCounter++) << 8;
-                    yield return () => workVariable = memory.ReadByte((ushort)workVariable);
-                    yield return () => registerA = (byte)workVariable;
-                    break;
+                    return Load_Target_Direct16MemoryAddr(ref registerA);
                 case Instruction.LD_pa16_A:
-                    yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => workVariable += memory.ReadByte(programCounter++) << 8;
-                    yield return () => workVariable2 = registerA;
-                    yield return () => memory.WriteByte((ushort)workVariable, (byte)workVariable2);
+                    return Load_Direct16MemoryAddr_Source(registerA);
                     break;
                 case Instruction.LD_A_pC:
-                    yield return () => workVariable = memory.ReadByte((ushort)((0xFF << 8) + registerC));
-                    yield return () => registerA = (byte)workVariable;
-                    break;
+                    return Load_Target_MemoryAddr(ref registerA, (ushort)((0xFF << 8) + registerC));
                 case Instruction.LD_pC_A:
-                    yield return () => workVariable = registerA;
-                    yield return () => memory.WriteByte((ushort)((0xFF << 8) + registerC), (byte)workVariable);
-                    break;
+                    return Load_MemoryAddr_SourceRegister((ushort)((0xFF << 8) + registerC), registerA);
                 case Instruction.LDH_A_pa8:
-                    yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => workVariable = memory.ReadByte((ushort)((0xFF << 8) + workVariable));
-                    yield return () => registerA = (byte)workVariable;
+                    return Load_Target_Direct8MemoryAddr(ref registerA);
                     break;
                 case Instruction.LDH_pa8_A:
-                    yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => workVariable2 = registerA;
-                    yield return () => memory.WriteByte((ushort)((0xFF << 8) + workVariable), (byte)workVariable2);
-                    break;
-                //case Instruction.LD_DE_d16:
-                //    yield return () => registerD = memory.ReadByte(programCounter++);
-                //    yield return () => registerE = memory.ReadByte(programCounter++);
-                //    break;
+                    return Load_Direct8MemoryAddr_Source(registerA);
                 case Instruction.INC_A:
-                    yield return () => registerA = IncrementRegister(registerA);
-                    break;
+                    return Increment(ref registerA);
                 case Instruction.INC_B:
-                    yield return () => registerB = IncrementRegister(registerB);
-                    break;
+                    return Increment(ref registerB);
                 case Instruction.INC_C:
-                    yield return () => registerC = IncrementRegister(registerC);
-                    break;
+                    return Increment(ref registerC);
                 case Instruction.INC_D:
-                    yield return () => registerD = IncrementRegister(registerD);
-                    break;
+                    return Increment(ref registerD);
                 case Instruction.INC_E:
-                    yield return () => registerE = IncrementRegister(registerE);
-                    break;
+                    return Increment(ref registerE);
                 case Instruction.INC_H:
-                    yield return () => registerH = IncrementRegister(registerH);
-                    break;
+                    return Increment(ref registerH);
                 case Instruction.INC_L:
-                    yield return () => registerL = IncrementRegister(registerL);
-                    break;
+                    return Increment(ref registerL);
                 case Instruction.DEC_A:
-                    yield return () => registerA = DecrementRegister(registerA);
-                    break;
+                    return Decrement(ref registerA);
                 case Instruction.DEC_B:
-                    yield return () => registerB = DecrementRegister(registerB);
-                    break;
+                    return Decrement(ref registerB);
                 case Instruction.DEC_C:
-                    yield return () => registerC = DecrementRegister(registerC);
-                    break;
+                    return Decrement(ref registerC);
                 case Instruction.DEC_D:
-                    yield return () => registerD = DecrementRegister(registerD);
-                    break;
+                    return Decrement(ref registerD);
                 case Instruction.DEC_E:
-                    yield return () => registerE = DecrementRegister(registerE);
-                    break;
+                    return Decrement(ref registerE);
                 case Instruction.DEC_H:
-                    yield return () => registerH = DecrementRegister(registerH);
-                    break;
+                    return Decrement(ref registerH);
                 case Instruction.DEC_L:
-                    yield return () => registerL = DecrementRegister(registerL);
-                    break;
+                    return Decrement(ref registerL);
                 case Instruction.XOR_A:
                     yield return () => registerA = XorWithRegisterA(registerA);
                     yield return () => SetFlag(CpuFlags.Zero, registerA == 0);
@@ -431,6 +388,42 @@ namespace GBEmu {
 
                 default: throw new NotImplementedException($"Instruction: {inst}");
             }
+        }
+
+        private int Decrement(ref byte target) {
+            target--;
+            return 4;
+        }
+
+        private int Increment(ref byte target) {
+            target++;
+            return 4;
+        }
+
+        private int Load_Direct8MemoryAddr_Source(byte source) {
+            ushort memoryAddr = (ushort)(memory.ReadByte(programCounter++) + 0xFF << 8);
+            return Load_MemoryAddr_SourceRegister(memoryAddr, source) + 8;
+        }
+
+        private int Load_Direct16MemoryAddr_Source(byte source) {
+            ushort memoryAddr = (ushort)(memory.ReadByte(programCounter++) + memory.ReadByte(programCounter++) << 8);
+            return Load_MemoryAddr_SourceRegister(memoryAddr, source) + 8;
+        }
+
+        private int Load_Target_Direct8MemoryAddr(ref byte target) {
+            ushort memoryAddr = (ushort)(memory.ReadByte(programCounter++) + 0xFF << 8);
+            return Load_Target_MemoryAddr(ref target, memoryAddr) + 8;
+        }
+
+        private int Load_Target_Direct16MemoryAddr(ref byte target) {
+            ushort memoryAddr = (ushort)(memory.ReadByte(programCounter++) + memory.ReadByte(programCounter++) << 8);
+            return Load_Target_MemoryAddr(ref target, memoryAddr) + 8;
+        }
+
+        private int Load_MemoryAddr_Direct8(ushort addr) {
+            var data = memory.ReadByte(programCounter++);
+            memory.WriteByte(addr, data);
+            return 4;
         }
 
         private int Load_Target_pHL(ref byte target) => Load_Target_MemoryAddr(ref target, registerHL);
