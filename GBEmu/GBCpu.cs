@@ -362,6 +362,25 @@ namespace GBEmu {
                 case Instruction.JR_NZ_r8:
                     return Jump_Conditonal_Direct8(instruction);
 
+                case Instruction.PUSH_AF:
+                    return Push(registerAF);
+                case Instruction.PUSH_BC:
+                    return Push(registerBC);
+                case Instruction.PUSH_DE:
+                    return Push(registerDE);
+                case Instruction.PUSH_HL:
+                    return Push(registerHL);
+
+                case Instruction.POP_AF:
+                case Instruction.POP_BC:
+                case Instruction.POP_DE:
+                case Instruction.POP_HL:
+                    return Pop(instruction);
+
+                case Instruction.RLA:
+                    return Rotate_Target_Left(ref registerA, clearZeroFlag: true);
+                case Instruction.RLCA:
+
                 default: throw new NotImplementedException($"Instruction: {instruction}");
             }
         }
@@ -467,6 +486,29 @@ namespace GBEmu {
                 case CBInstruction.BIT_7_L:
                     return Bit_X_Source(7, registerL);
 
+                case CBInstruction.RL_A:
+                    return Rotate_Target_Left(ref registerA);
+                case CBInstruction.RL_B:
+                    return Rotate_Target_Left(ref registerB);
+                case CBInstruction.RL_C:
+                    return Rotate_Target_Left(ref registerC);
+                case CBInstruction.RL_D:
+                    return Rotate_Target_Left(ref registerD);
+                case CBInstruction.RL_E:
+                    return Rotate_Target_Left(ref registerE);
+                case CBInstruction.RL_H:
+                    return Rotate_Target_Left(ref registerH);
+                case CBInstruction.RL_L:
+                    return Rotate_Target_Left(ref registerL);
+
+                case CBInstruction.RLC_A:
+                case CBInstruction.RLC_B:
+                case CBInstruction.RLC_C:
+                case CBInstruction.RLC_D:
+                case CBInstruction.RLC_E:
+                case CBInstruction.RLC_H:
+                case CBInstruction.RLC_L:
+
                 default: throw new NotImplementedException($"CbInstruction: {cbInstruction}");
             }
         }
@@ -559,15 +601,44 @@ namespace GBEmu {
             int cycles = 4;
             ushort addr = ReadDirect16();
             if (call) {
-                WritePCToStack();
+                WriteAddressToStack(programCounter);
                 programCounter = addr;
                 cycles += 8;
             }
             return cycles;
         }
-        private void WritePCToStack() {
-            memory.WriteByte(--stackPointer, LeastSignificantByte(programCounter));
-            memory.WriteByte(--stackPointer, MostSignificantByte(programCounter));
+
+        private int Push(ushort addr) {
+            WriteAddressToStack(addr);
+            return 4;
+        }
+
+        private void WriteAddressToStack(ushort addr) {
+            memory.WriteByte(--stackPointer, LeastSignificantByte(addr));
+            memory.WriteByte(--stackPointer, MostSignificantByte(addr));
+        }
+        
+        private int Pop(Instruction instruction) {
+            var addr = ReadAddressFromStack();
+            switch (instruction) {
+                case Instruction.POP_AF:
+                    registerAF = addr;
+                    break;
+                case Instruction.POP_BC:
+                    registerBC = addr;
+                    break;
+                case Instruction.POP_DE:
+                    registerDE = addr;
+                    break;
+                case Instruction.POP_HL:
+                    registerHL = addr;
+                    break;
+            }
+            return 4;
+        }
+
+        private ushort ReadAddressFromStack() {
+            return Combine(memory.ReadByte(stackPointer++), memory.ReadByte(stackPointer++));
         }
 
         private int Jump_Direct8() => Conditional_Jump_Direct8(true);
@@ -599,8 +670,6 @@ namespace GBEmu {
             }
         }
 
-        #region CBInstruction implementations
-
         private int Bit_X_Source(int x, byte source) {
             var isBitXSet = IsLeastSignificantBitSet((byte)(source >> x));
             SetFlag(CpuFlags.Zero, isBitXSet);
@@ -610,18 +679,20 @@ namespace GBEmu {
             return 8;
         }
 
-        private void RotateRegisterLeft(ref byte register) {
-            bool msbValue = IsMostSignificantBitSet(register);
-            register = (byte)(register << 1);
+        private int Rotate_Target_Left(ref byte target) => Rotate_Target_Left(ref target, false);
+
+        private int Rotate_Target_Left(ref byte target, bool clearZeroFlag) {
+            bool msbValue = IsMostSignificantBitSet(target);
+            target = (byte)(target << 1);
             if (msbValue) {
-                register = (byte)(register | LeastSignificantBitMask);
+                target = (byte)(target | LeastSignificantBitMask);
             }
-            SetFlag(CpuFlags.Zero, register == 0);
+            SetFlag(CpuFlags.Zero, clearZeroFlag ? false : target == 0);
             SetFlag(CpuFlags.AddSub, false);
             SetFlag(CpuFlags.HalfCarry, false);
             SetFlag(CpuFlags.Carry, msbValue);
+            return 8;
         }
-        #endregion
 
         #region CpuFlags
         private byte GetMask(CpuFlags flag) => flag switch {
