@@ -8,30 +8,7 @@ namespace GBEmu {
     }
     public class GbCpu : IGbCpu {
         private readonly IMemory memory;
-        private readonly Queue<Action> steps = new Queue<Action>(8);
-
-        //InstructionSteps
-        private Action FetchInstruction;
-        private Action NoOperation;
-        private Action Stop;
-        private Action RelativeJump;
-        private Action<ushort, ushort> LoadRegister;
-        private Action LoadImmediate;
-        private Action LoadAbsoluteAddress;
-        private Action LoadH;
-        private Action PushStack;
-        private Action PopStack;
-
-        private Action Call;
-
-        private Action Add;
-        private Action Subtract;
-        private Action And;
-        private Action Or;
-        private Action Return;
-        private Action ConditionalReturn;
-
-        private CBInstruction CbInstruction;
+        private int NumberOfCycles;
 
         private byte registerA; //accumulator and flags
         private byte registerB;
@@ -100,16 +77,19 @@ namespace GBEmu {
         private ushort stackPointer;
 
         private string ProgramCounter => $"${programCounter.ToString("X4")}";
+
+        private const int Increment = 1;
+        private const int Decrement = -1;
+
         private ushort programCounter;
 
         private int workVariable;
         private int workVariable2;
-        private Instruction fetchedInstruction;
 
         public GbCpu(GbModel model, IMemory memory) {
             this.memory = memory;
             Init(model);
-            steps.Enqueue(FetchInstruction);
+            NumberOfCycles = 0;
         }
 
         private void Init(GbModel model) {
@@ -122,287 +102,166 @@ namespace GBEmu {
             registerHL = 0x014d;
             stackPointer = 0xfffe;
             programCounter = 0x0000;
-
-            FetchInstruction = new Action(FetchInstructionImpl);
         }
 
         public void Tick() {
-            steps.Dequeue().Invoke();
-        }
-
-        private void FetchInstructionImpl() {
-            fetchedInstruction = (Instruction)memory.ReadByte(programCounter++);
-            var actions =  GetActionChain(fetchedInstruction);
-            foreach (var action in actions) {
-                steps.Enqueue(action);
+            if(--NumberOfCycles > 0) {
+                return;
             }
-            steps.Enqueue(FetchInstruction);
+            Instruction instruction = (Instruction)memory.ReadByte(programCounter++);
+            NumberOfCycles = ExecuteInstruction(instruction);
         }
 
-        private IEnumerable<Action> GetActionChain(Instruction inst) {
+        private int ExecuteInstruction(Instruction instruction) {
             switch (inst) {
                 case Instruction.NOP:
-                    yield return () => { };
-                    break;
+                    return 4;
                 case Instruction.PREFIX_CB:
-                    yield return () => CbInstruction = (CBInstruction)(memory.ReadByte(programCounter++));
-                    foreach (var action in GetCbActionChain()) {
-                        yield return action;
-                    }
-                    break;
-#pragma warning disable 1717
+                    return ExecuteCbInstruction((CBInstruction)memory.ReadByte(programCounter++));
                 case Instruction.LD_A_A:
-                    yield return () => registerA = registerA;
-                    break;
-#pragma warning restore 1717
+                    return Load_Target_Source(ref registerA, registerA);
                 case Instruction.LD_A_B:
-                    yield return () => registerA = registerB;
-                    break;
+                    return Load_Target_Source(ref registerA, registerB);
                 case Instruction.LD_A_C:
-                    yield return () => registerA = registerC;
-                    break;
+                    return Load_Target_Source(ref registerA, registerC);
                 case Instruction.LD_A_D:
-                    yield return () => registerA = registerD;
-                    break;
+                    return Load_Target_Source(ref registerA, registerD);
                 case Instruction.LD_A_E:
-                    yield return () => registerA = registerE;
-                    break;
+                    return Load_Target_Source(ref registerA, registerE);
                 case Instruction.LD_A_H:
-                    yield return () => registerA = registerH;
-                    break;
+                    return Load_Target_Source(ref registerA, registerH);
                 case Instruction.LD_A_L:
-                    yield return () => registerA = registerL;
-                    break;
+                    return Load_Target_Source(ref registerA, registerL);
                 case Instruction.LD_B_A:
-                    yield return () => registerB = registerA;
-                    break;
-#pragma warning disable 1717
+                    return Load_Target_Source(ref registerB, registerA);
                 case Instruction.LD_B_B:
-                    yield return () => registerB = registerB;
-                    break;
-#pragma warning restore 1717
+                    return Load_Target_Source(ref registerB, registerB);
                 case Instruction.LD_B_C:
-                    yield return () => registerB = registerC;
-                    break;
+                    return Load_Target_Source(ref registerB, registerC);
                 case Instruction.LD_B_D:
-                    yield return () => registerB = registerD;
-                    break;
+                    return Load_Target_Source(ref registerB, registerD);
                 case Instruction.LD_B_E:
-                    yield return () => registerB = registerE;
-                    break;
+                    return Load_Target_Source(ref registerB, registerE);
                 case Instruction.LD_B_H:
-                    yield return () => registerB = registerH;
-                    break;
+                    return Load_Target_Source(ref registerB, registerH);
                 case Instruction.LD_B_L:
-                    yield return () => registerB = registerL;
-                    break;
+                    return Load_Target_Source(ref registerB, registerL);
                 case Instruction.LD_C_A:
-                    yield return () => registerC = registerA;
-                    break;
+                    return Load_Target_Source(ref registerC, registerA);
                 case Instruction.LD_C_B:
-                    yield return () => registerC = registerB;
-                    break;
-#pragma warning disable 1717
+                    return Load_Target_Source(ref registerC, registerB);
                 case Instruction.LD_C_C:
-                    yield return () => registerC = registerC;
-                    break;
-#pragma warning restore 1717
+                    return Load_Target_Source(ref registerC, registerC);
                 case Instruction.LD_C_D:
-                    yield return () => registerC = registerD;
-                    break;
+                    return Load_Target_Source(ref registerC, registerD);
                 case Instruction.LD_C_E:
-                    yield return () => registerC = registerE;
-                    break;
+                    return Load_Target_Source(ref registerC, registerE);
                 case Instruction.LD_C_H:
-                    yield return () => registerC = registerH;
-                    break;
+                    return Load_Target_Source(ref registerC, registerH);
                 case Instruction.LD_C_L:
-                    yield return () => registerC = registerL;
-                    break;
+                    return Load_Target_Source(ref registerC, registerL);
                 case Instruction.LD_D_A:
-                    yield return () => registerD = registerA;
-                    break;
+                    return Load_Target_Source(ref registerD, registerA);
                 case Instruction.LD_D_B:
-                    yield return () => registerD = registerB;
-                    break;
+                    return Load_Target_Source(ref registerD, registerB);
                 case Instruction.LD_D_C:
-                    yield return () => registerD = registerC;
-                    break;
-#pragma warning disable 1717
+                    return Load_Target_Source(ref registerD, registerC);
                 case Instruction.LD_D_D:
-                    yield return () => registerD = registerD;
-                    break;
-#pragma warning restore 1717
+                    return Load_Target_Source(ref registerD, registerD);
                 case Instruction.LD_D_E:
-                    yield return () => registerD = registerE;
-                    break;
+                    return Load_Target_Source(ref registerD, registerE);
                 case Instruction.LD_D_H:
-                    yield return () => registerD = registerH;
-                    break;
+                    return Load_Target_Source(ref registerD, registerH);
                 case Instruction.LD_D_L:
-                    yield return () => registerD = registerL;
-                    break;
+                    return Load_Target_Source(ref registerD, registerL);
                 case Instruction.LD_E_A:
-                    yield return () => registerE = registerA;
-                    break;
+                    return Load_Target_Source(ref registerE, registerA);
                 case Instruction.LD_E_B:
-                    yield return () => registerE = registerB;
-                    break;
+                    return Load_Target_Source(ref registerE, registerB);
                 case Instruction.LD_E_C:
-                    yield return () => registerE = registerC;
-                    break;
+                    return Load_Target_Source(ref registerE, registerC);
                 case Instruction.LD_E_D:
-                    yield return () => registerE = registerD;
-                    break;
-#pragma warning disable 1717
+                    return Load_Target_Source(ref registerE, registerD);
                 case Instruction.LD_E_E:
-                    yield return () => registerE = registerE;
-                    break;
-#pragma warning restore 1717
+                    return Load_Target_Source(ref registerE, registerE);
                 case Instruction.LD_E_H:
-                    yield return () => registerE = registerH;
-                    break;
+                    return Load_Target_Source(ref registerE, registerH);
                 case Instruction.LD_E_L:
-                    yield return () => registerE = registerL;
-                    break;
+                    return Load_Target_Source(ref registerE, registerL);
                 case Instruction.LD_H_A:
-                    yield return () => registerH = registerA;
-                    break;
+                    return Load_Target_Source(ref registerH, registerA);
                 case Instruction.LD_H_B:
-                    yield return () => registerH = registerB;
-                    break;
+                    return Load_Target_Source(ref registerH, registerB);
                 case Instruction.LD_H_C:
-                    yield return () => registerH = registerC;
-                    break;
+                    return Load_Target_Source(ref registerH, registerC);
                 case Instruction.LD_H_D:
-                    yield return () => registerH = registerD;
-                    break;
+                    return Load_Target_Source(ref registerH, registerD);
                 case Instruction.LD_H_E:
-                    yield return () => registerH = registerE;
-                    break;
-#pragma warning disable 1717
+                    return Load_Target_Source(ref registerH, registerE);
                 case Instruction.LD_H_H:
-                    yield return () => registerH = registerH;
-                    break;
-#pragma warning restore 1717
+                    return Load_Target_Source(ref registerH, registerH);
                 case Instruction.LD_H_L:
-                    yield return () => registerH = registerL;
-                    break;
+                    return Load_Target_Source(ref registerH, registerL);
                 case Instruction.LD_L_A:
-                    yield return () => registerL = registerA;
-                    break;
+                    return Load_Target_Source(ref registerL, registerA);
                 case Instruction.LD_L_B:
-                    yield return () => registerL = registerB;
-                    break;
+                    return Load_Target_Source(ref registerL, registerB);
                 case Instruction.LD_L_C:
-                    yield return () => registerL = registerC;
-                    break;
+                    return Load_Target_Source(ref registerL, registerC);
                 case Instruction.LD_L_D:
-                    yield return () => registerL = registerD;
-                    break;
+                    return Load_Target_Source(ref registerL, registerD);
                 case Instruction.LD_L_E:
-                    yield return () => registerL = registerE;
-                    break;
+                    return Load_Target_Source(ref registerL, registerE);
                 case Instruction.LD_L_H:
-                    yield return () => registerL = registerH;
-                    break;
-#pragma warning disable 1717
+                    return Load_Target_Source(ref registerL, registerH);
                 case Instruction.LD_L_L:
-                    yield return () => registerL = registerL;
-                    break;
-#pragma warning restore 1717
+                    return Load_Target_Source(ref registerL, registerL);
                 case Instruction.LD_A_d8:
-                    yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => registerA = (byte)workVariable;
-                    break;
+                    return Load_Target_Direct8(ref registerA);
                 case Instruction.LD_B_d8:
-                    yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => registerB = (byte)workVariable;
-                    break;
+                    return Load_Target_Direct8(ref registerB);
                 case Instruction.LD_C_d8:
-                    yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => registerC = (byte)workVariable;
-                    break;
+                    return Load_Target_Direct8(ref registerC);
                 case Instruction.LD_D_d8:
-                    yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => registerD = (byte)workVariable;
-                    break;
+                    return Load_Target_Direct8(ref registerD);
                 case Instruction.LD_E_d8:
-                    yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => registerE = (byte)workVariable;
-                    break;
+                    return Load_Target_Direct8(ref registerE);
                 case Instruction.LD_H_d8:
-                    yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => registerH = (byte)workVariable;
-                    break;
+                    return Load_Target_Direct8(ref registerH);
                 case Instruction.LD_L_d8:
-                    yield return () => workVariable = memory.ReadByte(programCounter++);
-                    yield return () => registerL = (byte)workVariable;
-                    break;
+                    return Load_Target_Direct8(ref registerL);
                 case Instruction.LD_A_pHL:
-                    yield return () => workVariable = memory.ReadByte(registerHL);
-                    yield return () => registerA = (byte)workVariable;
-                    break;
+                    return Load_Target_MemoryAddr(ref registerA, registerHL);
                 case Instruction.LD_B_pHL:
-                    yield return () => workVariable = memory.ReadByte(registerHL);
-                    yield return () => registerB = (byte)workVariable;
-                    break;
+                    return Load_Target_MemoryAddr(ref registerB, registerHL);
                 case Instruction.LD_C_pHL:
-                    yield return () => workVariable = memory.ReadByte(registerHL);
-                    yield return () => registerC = (byte)workVariable;
-                    break;
+                    return Load_Target_MemoryAddr(ref registerC, registerHL);
                 case Instruction.LD_D_pHL:
-                    yield return () => workVariable = memory.ReadByte(registerHL);
-                    yield return () => registerD = (byte)workVariable;
-                    break;
+                    return Load_Target_MemoryAddr(ref registerD, registerHL);
                 case Instruction.LD_E_pHL:
-                    yield return () => workVariable = memory.ReadByte(registerHL);
-                    yield return () => registerE = (byte)workVariable;
-                    break;
+                    return Load_Target_MemoryAddr(ref registerE, registerHL);
                 case Instruction.LD_H_pHL:
-                    yield return () => workVariable = memory.ReadByte(registerHL);
-                    yield return () => registerH = (byte)workVariable;
-                    break;
+                    return Load_Target_MemoryAddr(ref registerH, registerHL);
                 case Instruction.LD_L_pHL:
-                    yield return () => workVariable = memory.ReadByte(registerHL);
-                    yield return () => registerL = (byte)workVariable;
-                    break;
+                    return Load_Target_MemoryAddr(ref registerL, registerHL);
                 case Instruction.LD_pHL_A:
-                    yield return () => workVariable = registerA;
-                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
-                    break;
+                    return Load_MemoryAddr_SourceRegister(registerHL, registerA);
                 case Instruction.LD_pHL_B:
-                    yield return () => workVariable = registerB;
-                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
-                    break;
+                    return Load_MemoryAddr_SourceRegister(registerHL, registerB);
                 case Instruction.LD_pHL_C:
-                    yield return () => workVariable = registerC;
-                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
-                    break;
+                    return Load_MemoryAddr_SourceRegister(registerHL, registerC);
                 case Instruction.LD_pHL_D:
-                    yield return () => workVariable = registerD;
-                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
-                    break;
+                    return Load_MemoryAddr_SourceRegister(registerHL, registerD);
                 case Instruction.LD_pHL_E:
-                    yield return () => workVariable = registerE;
-                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
-                    break;
+                    return Load_MemoryAddr_SourceRegister(registerHL, registerE);
                 case Instruction.LD_pHL_H:
-                    yield return () => workVariable = registerH;
-                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
-                    break;
+                    return Load_MemoryAddr_SourceRegister(registerHL, registerH);
                 case Instruction.LD_pHL_L:
-                    yield return () => workVariable = registerL;
-                    yield return () => memory.WriteByte(registerHL, (byte)workVariable);
-                    break;
+                    return Load_MemoryAddr_SourceRegister(registerHL, registerL);
                 case Instruction.LD_A_pHLminus:
-                    yield return () => registerA = memory.ReadByte(registerHL);
-                    yield return () => registerHL = (ushort)(registerHL - 1);
-                    break;
+                    return Load_Target_MemoryAddr(ref registerA, registerHL, Decrement);
                 case Instruction.LD_A_pHLplus:
-                    yield return () => registerA = memory.ReadByte(registerHL);
-                    yield return () => registerHL = (ushort)(registerHL + 1);
-                    break;
+                    return Load_Target_MemoryAddr(ref registerA, registerHL, Increment);
                 case Instruction.LD_pHLminus_A:
                     yield return () => memory.WriteByte(registerHL, registerA);
                     yield return () => registerHL = (ushort)(registerHL - 1);
@@ -558,7 +417,7 @@ namespace GBEmu {
                     break;
 
 
-                
+
                 case Instruction.JR_C_r8:
                 case Instruction.JR_NC_r8:
                 case Instruction.JR_Z_r8:
@@ -572,6 +431,45 @@ namespace GBEmu {
 
                 default: throw new NotImplementedException($"Instruction: {inst}");
             }
+        }
+
+        private int Load_Target_pHL(ref byte target) => Load_Target_MemoryAddr(ref target, registerHL);
+
+        private int Load_Target_pHLplus(ref byte target) {
+            var cycles = Load_Target_pHL(ref target);
+            registerHL = (ushort)(registerHL + 1);
+            return cycles;
+        }
+
+        private int Load_Target_pHLminus(ref byte target) {
+            var cycles = Load_Target_pHL(ref target);
+            registerHL = (ushort)(registerHL - 1);
+            return cycles;
+        }
+
+        private int Load_Target_MemoryAddr(ref byte target, ushort addr) {
+            target = memory.ReadByte(addr);
+            return 4;
+        }
+
+        private int Load_MemoryAddr_SourceRegister(ushort addr, byte source) {
+            memory.WriteByte(addr, source);
+            return 4;
+        }
+
+
+        private int Load_Target_Direct8(ref byte target) {
+            target = memory.ReadByte(programCounter++);
+            return 4;
+        }
+
+        private int ExecuteCbInstruction(CBInstruction cBInstruction) {
+            throw new NotImplementedException();
+        }
+
+        private int Load_Target_Source(ref byte target, byte source) {
+            target = source;
+            return 4;
         }
 
         private IEnumerable<Action> JR_cc_n(Instruction instruction) {
