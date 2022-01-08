@@ -72,8 +72,8 @@ namespace GBEmu {
                 return Combine(stackPointerUpper, stackPointerLower);
             }
             set {
-                registerL = LeastSignificantByte(value);
-                registerH = MostSignificantByte(value);
+                stackPointerLower = LeastSignificantByte(value);
+                stackPointerUpper = MostSignificantByte(value);
             }
         }
         private ushort Combine(byte upperByte, byte lowerByte) => (ushort)((upperByte << 8) + lowerByte);
@@ -84,7 +84,9 @@ namespace GBEmu {
         private bool IsMostSignificantBitSet(byte b) => IsLeastSignificantBitSet((byte)(b >> 7));
         private bool IsLeastSignificantBitSet(byte b) => (b & LeastSignificantBitMask) == LeastSignificantBitMask;
 
-        private string ProgramCounter => $"${programCounter.ToString("X4")}";
+        public string ProgramCounter => $"${programCounter.ToString("X4")}";
+        public ushort PCAsShort => programCounter;
+        public string NextInstruction => ((Instruction)memory.ReadByte(programCounter)).ToString();
 
         private ushort programCounter;
 
@@ -518,13 +520,45 @@ namespace GBEmu {
         private byte ReadDirect8() => memory.ReadByte(programCounter++);
 
         #region Instruction implementations
+
+        private byte AddCore(byte a, byte b, out bool halfCarry, out bool carry) {
+            const int nybbleMask = 0x0f;
+            const int halfCarryBit = 0x10;
+            halfCarry = (((a & nybbleMask) + (b & nybbleMask)) & halfCarryBit) == halfCarryBit;
+            const int carryBit = 0x100;
+            var sum = a + b;
+            carry = (sum & carryBit) == carryBit;
+            return (byte)sum;
+        }
+
+        //change the impl. of this method to be different from AddCore.
+        private byte SubCore(byte a, byte b, out bool halfCarry, out bool carry) {
+            const int nybbleMask = 0x0f;
+            const int halfCarryBit = 0x10;
+            halfCarry = (((a & nybbleMask) + (b & nybbleMask)) & halfCarryBit) == halfCarryBit; //TODO : change the implementation to do the Right Thing.
+            const int carryBit = 0x100;
+            var sum = a + b;
+            carry = (sum & carryBit) == carryBit;
+            return (byte)sum;
+        }
+
         private int Decrement(ref byte target) {
-            target--;
+            bool halfCarry;
+            target = SubCore(target, 1, out halfCarry, out _);
+            SetFlag(CpuFlags.Zero, target == 0);
+            SetFlag(CpuFlags.AddSub, false);
+            SetFlag(CpuFlags.HalfCarry, halfCarry);
+            // Carry flag (strangely) not affected by Dec.
             return 4;
         }
 
         private int Increment(ref byte target) {
-            target++;
+            bool halfCarry;
+            target = AddCore(target, 1, out halfCarry, out _);
+            SetFlag(CpuFlags.Zero, target == 0);
+            SetFlag(CpuFlags.AddSub, false);
+            SetFlag(CpuFlags.HalfCarry, halfCarry);
+            // Carry flag (strangely) not affected by Inc.
             return 4;
         }
 
@@ -590,6 +624,9 @@ namespace GBEmu {
         private byte XorWithRegisterA(byte data) {
             registerA = (byte)(data ^ registerA);
             SetFlag(CpuFlags.Zero, registerA == 0);
+            SetFlag(CpuFlags.AddSub, false);
+            SetFlag(CpuFlags.HalfCarry, false);
+            SetFlag(CpuFlags.Carry, false);
             return 4;
         }
 
@@ -613,10 +650,6 @@ namespace GBEmu {
             return 4;
         }
 
-        private void WriteAddressToStack(ushort addr) {
-            memory.WriteByte(--stackPointer, LeastSignificantByte(addr));
-            memory.WriteByte(--stackPointer, MostSignificantByte(addr));
-        }
         
         private int Pop(Instruction instruction) {
             var addr = ReadAddressFromStack();
@@ -637,8 +670,17 @@ namespace GBEmu {
             return 4;
         }
 
+        private void WriteAddressToStack(ushort addr) {
+            memory.WriteByte(stackPointer, MostSignificantByte(addr));
+            memory.WriteByte((ushort)(stackPointer - 1), LeastSignificantByte(addr));
+            stackPointer = (ushort)(stackPointer - 2);
+        }
+
         private ushort ReadAddressFromStack() {
-            return Combine(memory.ReadByte(stackPointer++), memory.ReadByte(stackPointer++));
+            byte leastSignificantByte = memory.ReadByte((ushort)(stackPointer + 1));
+            byte mostSignificantByte = memory.ReadByte((ushort)(stackPointer + 2));
+            stackPointer = (ushort)(stackPointer + 2);
+            return Combine(mostSignificantByte, leastSignificantByte);
         }
 
         private int Jump_Direct8() => Conditional_Jump_Direct8(true);
